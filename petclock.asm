@@ -326,6 +326,21 @@ TwoInTens:      dec HourTens            ; If it's 2X:XX we go back 12 hours
                 clc                     ;   adding 20 and then going back 12 from
                 adc #8                  ;   there, it's the same as adding 8 to
                 sta HourDigits          ;   hours digit while clearing the tens.
+		
+		;now we need to take care of the overflow
+                ;we can assume that C is still clear, ADC will never overflow
+		;so we can just do something like this:
+		adc #-10
+		;I may have invented it, call the patent office, if it's important. 
+		
+		cmp #'0' ;clears C if we previously had a valid hour digit (<= '9') which just "underflowed"
+		bcc @DigitsWereValid
+			sta HourDigits
+			inc HourTens
+@DigitsWereValid:
+		;Please test this, I wasn't able to build the code so I just gotta hope it works. 
+		;-NoobTracker
+		
                 rts
 
 FakeResponse:    .literal "2017-01-09t21:23:45 MON", 0
