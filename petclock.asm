@@ -61,7 +61,7 @@ ScratchEnd:
 ; This is where we store the time
 
 ClockStart:		 
-   HourTens:		 .res  1             ; Various parts of the clock, in text like ASCII '0'
+   HourTens:		 .res  1            ; Various parts of the clock, in text like ASCII '0'
    HourDigits:	     .res  1
    MinTens:		     .res  1
    MinDigits:	     .res  1	
@@ -117,7 +117,7 @@ Line20:			.word endOfBasic					; PTR to next line, which is 0000
                 .literal " "
                 .literal .string(*+7)	    		; Entry is 7 bytes from here, which is
                                                     ;  not how I'd like to do it but you cannot
-                                                    ;  use a forward reference in .string()
+                                                    ;  use a forward reference in STR$()
 
                 .byte 00							; Do not modify without understanding 
 endOfBasic:		.word 00							;   the +7 expression above, as this is
@@ -173,8 +173,8 @@ notEscape:		cmp #$48
 
 ExitApp:			
 .if DEBUG
-                ldy #>hello				; Output load text and exit
-                lda #<hello
+                ldy #>loadstr				; Output load text and exit
+                lda #<loadstr
                 jsr WriteLine
 .endif
                 rts
@@ -303,8 +303,8 @@ UpdateClock:
                 sta SecDigits
 
                 ; We don't want 24-hour time, so fix it up if needed
-
-                lda HourTens            
+                
+Fix24HourTime:  lda HourTens            
                 cmp #'0'                ; If the TENS digit is 0, nothing to do 
                 beq ZeroInTens          
 
@@ -314,20 +314,21 @@ UpdateClock:
 
                 cmp #'3'                ; If the ONES digit is < 3, nothing to do
                 bcc ZeroInTens
+                                        ; Hour Tens must be a one a this point
                 dec HourTens            ; But otherwise we back up 12 hours
                 dec HourDigits
                 dec HourDigits
 ZeroInTens:     rts
-
-TwoInTens:      lda #'0'                ; To go back 12 hours we go back 20 in the
-                sta HourTens            ;  tens portion and add 8 to the digits
-                lda HourDigits
-                clc
-                adc #8
-                sta HourDigits
+    
+TwoInTens:      dec HourTens            ; If it's 2X:XX we go back 12 hours
+                dec HourTens            ; Tens digit goes to zero, we give those
+                lda HourDigits          ;   20 hours to the hours digit.  So by
+                clc                     ;   adding 20 and then going back 12 from
+                adc #8                  ;   there, it's the same as adding 8 to
+                sta HourDigits          ;   hours digit while clearing the tens.
                 rts
 
-FakeResponse:    .literal "2017-01-09t21:34:56 MON", 0
+FakeResponse:    .literal "2017-01-09t21:23:45 MON", 0
 
 ;----------------------------------------------------------------------------
 ; SendCommand
@@ -628,7 +629,7 @@ DrawBigChar:	pha						; Save the A for later, it's the character
 ;       OUT Y:  msb of address
 ;-----------------------------------------------------------------------------------
 
-GetCursorAddr:   stx temp
+GetCursorAddr:  stx temp
                 ldx #40
                 jsr Multiply			; Result of Y*40 in AY
                 sta resultLo
@@ -717,7 +718,9 @@ RepeatChar:		jsr CHROUT
 ; During development we output the LOAD statement after running to make the 
 ; code-test-debug cycle go a little easier - less typing
 
-hello:			.literal "LOAD ", 34,"PETCLOCK.PRG",34,", 9",13,0
+loadstr:		.literal "LOAD ", 34,"PETCLOCK.PRG",34,", 9",13,0
+hello:			.literal "STARTING PETCLOCK...", 0
+
 .endif
 
 ;-----------------------------------------------------------------------------------
