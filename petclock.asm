@@ -327,12 +327,11 @@ TwoInTens:      dec HourTens            ; If it's 2X:XX we go back 12 hours
                 adc #8                  ;   there, it's the same as adding 8 to
                                         ;   hours digit while clearing the tens.
 
-                cmp #':'                ; If we have a digits value <= 9, then
+                cmp #'9'+1              ; If we have a digits value <= 9, then
                 bcc @donedigits         ;   we're done here. Otherwise,
-                inc HourTens            ;   we increase the tens value to 1
-                sbc #10                 ;   and subtract 10 from the current
-                                        ;   digits value 
-
+                sbc #10                 ;   subtract 10 from the digits
+                inc HourTens            ;   and increase the tens value to 1
+ 
 @donedigits:    sta HourDigits          ; We're good to store our hour digits
                 rts
 
