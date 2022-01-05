@@ -165,7 +165,7 @@ notEscape:
                 cmp #$5A				
                 bne @notZero
                 jsr ZeroSeconds		    ; Z pressed, set seconds to 0
-                jmp MainLoop
+                jmp InnerLoop
 
 @notZero:       cmp #$48				
                 bne @notHour
