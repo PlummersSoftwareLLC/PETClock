@@ -13,8 +13,10 @@
 PET             = 1
 DEBUG           = 1					; Enable code that only is included for debug builds
 EPROM           = 0					; When TRUE, no BASIC stub, no load address in file
+PETSDPLUS       = 0                 ; When TRUE, read RTC from petSD+
 
 DEVICE_NUM      = 9
+MINUTE_JIFFIES  = 3600              ; Number of jiffies in a minute
 
 .INCLUDE "pet.inc"
 .INCLUDE "basic4.inc"
@@ -55,7 +57,7 @@ ScratchStart:
    tempchar:		 .res  1	        ; Scratch variable
    MultiplyTemp:	 .res  1            ; Scratch variable for multiply code
    resultLo:		 .res  1			; Results from multiply operations
-   resultHi:		 .res  1             
+   resultHi:		 .res  1
 ScratchEnd:		 
 
 ; This is where we store the time
@@ -131,14 +133,17 @@ endOfBasic:		.word 00							;   the +7 expression above, as this is
 
 start:			cld
                 jsr InitVariables       ; Since we can be in ROM, zero stuff out
-                jsr UpdateClock
+                jsr ZeroSeconds         ; Set clock to 0 seconds in the minute
+                jsr LoadClock
 MainLoop:		
                 ldy ClockYPos			
                 ldx ClockXPos
                 jsr DrawClockXY
 
-InnerLoop:		jsr UpdateClockPos      ; Carry will be clear when its time 
-                bcs MainLoop            ;    to check keyboard and move clock
+InnerLoop:		jsr UpdateClockPos      ; Carry will be clear when its time to update
+                bcs MainLoop            ;   clock, check keyboard and move clock
+
+                jsr UpdateClock         ; Update clock values if it's time to do so
 
                 jsr GETIN				; Keyboard Handling - check for input
                 cmp #0
@@ -148,7 +153,22 @@ InnerLoop:		jsr UpdateClockPos      ; Carry will be clear when its time
                 bne notEscape
                 beq ExitApp				; Escape pressed, go to exit
 
-notEscape:		cmp #$48				
+notEscape:		
+
+.if PETSDPLUS
+                cmp #$4C
+                bne @notLoad
+                jsr LoadClock           ; L pressed, load time off RTC
+                jmp @MainLoop
+
+@notLoad:
+.endif
+                cmp #$5A				
+                bne @notZero
+                jsr ZeroSeconds		    ; Z pressed, set seconds to 0
+                jmp MainLoop
+
+@notZero:       cmp #$48				
                 bne @notHour
                 jsr IncrementHour		; H pressed, increment hour
                 jmp MainLoop
@@ -161,11 +181,13 @@ notEscape:		cmp #$48
 @notHourDn:		cmp #$4D
                 bne @notMin
                 jsr IncrementMinute		; M pressed, increment minute
+                jsr ZeroSeconds
                 jmp MainLoop
 
 @notMin:		cmp #$CD
                 bne @notMinDn
                 jsr DecrementMinute		; SHIFT-M pressed, decrement minute
+                jsr ZeroSeconds
                 jmp MainLoop
 
 @notMinDn:		jsr ShowInstructions	; Any other key shows the help text
@@ -277,18 +299,31 @@ ShowInstructions:
 @done:			rts
 
 ;-----------------------------------------------------------------------------------
-; UpdateClock - Pulls the current time of day from the hardware
+; ZeroSeconds - (Re)sets the second zero point to now
 ;-----------------------------------------------------------------------------------
 
-UpdateClock:
-  
+ZeroSeconds:
+                lda #0                  ; Set all 3 bytes of the jiffy timer to zero
+                sei                     ; with interrupts disabled
+                sta JIFFY_TIMER
+                sta JIFFY_TIMER-1
+                sta JIFFY_TIMER-2
+                cli
+                rts
+
+;-----------------------------------------------------------------------------------
+; LoadClock - Sets the current time of day from hardware or a fake value
+;-----------------------------------------------------------------------------------
+
+LoadClock:
+.if PETSDPLUS  
                 ldx #<CommandText
                 ldy #>CommandText
-                ;jsr SendCommand         ; Fetch time from Real Time Clock on petSD+
-
+                jsr SendCommand         ; Fetch time from Real Time Clock on petSD+
+                jsr GetDeviceStatus
+.else
                 jsr SetFakeResponse
-                ;jsr GetDeviceStatus
-
+.endif
                 lda ClkHourTens
                 sta HourTens
                 lda ClkHourDigits
@@ -335,7 +370,45 @@ TwoInTens:      dec HourTens            ; If it's 2X:XX we go back 12 hours
 @donedigits:    sta HourDigits          ; We're good to store our hour digits
                 rts
 
-FakeResponse:    .literal "2017-01-09t21:23:45 MON", 0
+FakeResponse:   .literal "2017-01-09t21:23:45 MON", 0
+
+
+;-----------------------------------------------------------------------------------
+; UpdateClock - Updates the clock (minutes), if a minute has passed 
+;-----------------------------------------------------------------------------------
+UpdateClock:
+                ; The numbers between brackets are the machine cycles per instruction
+                sei                     ; Load jiffy timer values with interrups    (2)
+                ldy JIFFY_TIMER-2       ;   disabled. Weirdly, the three bytes of   (3)
+                ldx JIFFY_TIMER-1       ;   that value are stored big-endian.       (3)
+                lda JIFFY_TIMER         ;                                           (3)
+                cli                     ;                                           (2)
+
+                sec                     ; Subtract the number of jiffies per minute (2)
+                sbc #<MINUTE_JIFFIES    ;   from the jiffy timer value, low byte    (2) 
+                sta temp                ;   first. Store A in temp, as we need A to (4)
+                txa                     ;   subtract the high byte of the number of (2)
+                sbc #>MINUTE_JIFFIES    ;   jiffies per minute from the middle      (2)
+                tax                     ;   jiffy byte. We put that back in X, put  (2)
+                tya                     ;   the highest jiffy value byte into A     (2)
+                sbc #0                  ;   and complete the 3-byte subtract.       (2)
+
+                bcs @doupdate           ; If carry is set, a minute has passed.     (3)
+                rts                     ; Otherwise, we're done.
+
+@doupdate:      tay                     ; Put the highest jiffy value after the     (2)
+                lda temp                ;   subtract back in Y, and load the temp   (4)
+                                        ;   value we saved earlier into A.
+
+                sei                     ; Save updated jiffy timer values with      (2)
+                sty JIFFY_TIMER-2       ;   interrupts disabled                     (3)
+                stx JIFFY_TIMER-1       ;                                           (3)
+                sta JIFFY_TIMER         ;                                           (3)
+                cli                     ;                                           (2)
+                ;                                                                 +----
+                ; Estimated jiffy timer drift in μs per applied clock update:       53
+
+                jmp IncrementMinute     ; Increase the minute count
 
 ;----------------------------------------------------------------------------
 ; SendCommand
