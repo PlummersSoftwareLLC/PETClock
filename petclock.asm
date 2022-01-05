@@ -160,7 +160,7 @@ notEscape:
                 bne @notLoad
                 jsr LoadClock           ; L pressed, load time off RTC
                 jmp @MainLoop
-                
+
 @notLoad:
 .endif
                 cmp #$5A				
@@ -181,11 +181,13 @@ notEscape:
 @notHourDn:		cmp #$4D
                 bne @notMin
                 jsr IncrementMinute		; M pressed, increment minute
+                jsr ZeroSeconds
                 jmp MainLoop
 
 @notMin:		cmp #$CD
                 bne @notMinDn
                 jsr DecrementMinute		; SHIFT-M pressed, decrement minute
+                jsr ZeroSeconds
                 jmp MainLoop
 
 @notMinDn:		jsr ShowInstructions	; Any other key shows the help text
