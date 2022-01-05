@@ -133,7 +133,8 @@ endOfBasic:		.word 00							;   the +7 expression above, as this is
 
 start:			cld
                 jsr InitVariables       ; Since we can be in ROM, zero stuff out
-                jsr InitClock
+                jsr ZeroSeconds         ; Set clock to 0 seconds in the minute
+                jsr LoadClock
 MainLoop:		
                 ldy ClockYPos			
                 ldx ClockXPos
@@ -152,7 +153,12 @@ InnerLoop:		jsr UpdateClockPos      ; Carry will be clear when its time to updat
                 bne notEscape
                 beq ExitApp				; Escape pressed, go to exit
 
-notEscape:		cmp #$48				
+notEscape:		cmp #$5A				
+                bne @notZero
+                jsr ZeroSeconds		    ; Z pressed, set seconds to 0
+                jmp MainLoop
+
+@notZero:       cmp #$48				
                 bne @notHour
                 jsr IncrementHour		; H pressed, increment hour
                 jmp MainLoop
@@ -281,16 +287,21 @@ ShowInstructions:
 @done:			rts
 
 ;-----------------------------------------------------------------------------------
-; InitClock - Sets the current time of day from hardware or a fake value
+; ZeroSeconds - (Re)sets the second zero point to now
 ;-----------------------------------------------------------------------------------
 
-InitClock:
+ZeroSeconds:
                 lda #0                  ; Set all 3 bytes of the jiffy timer to zero
                 sei                     ; with interrupts disabled
                 sta JIFFY_TIMER
                 sta JIFFY_TIMER-1
                 sta JIFFY_TIMER-2
                 cli
+                rts
+
+;-----------------------------------------------------------------------------------
+; LoadClock - Sets the current time of day from hardware or a fake value
+;-----------------------------------------------------------------------------------
 
 LoadClock:
 .if PETSDPLUS  
