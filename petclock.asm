@@ -153,7 +153,17 @@ InnerLoop:		jsr UpdateClockPos      ; Carry will be clear when its time to updat
                 bne notEscape
                 beq ExitApp				; Escape pressed, go to exit
 
-notEscape:		cmp #$5A				
+notEscape:		
+
+.if PETSDPLUS
+                cmp #$4C
+                bne @notLoad
+                jsr LoadClock           ; L pressed, load time off RTC
+                jmp @MainLoop
+                
+@notLoad:
+.endif
+                cmp #$5A				
                 bne @notZero
                 jsr ZeroSeconds		    ; Z pressed, set seconds to 0
                 jmp MainLoop
@@ -396,11 +406,7 @@ UpdateClock:
                 ;                                                                 +----
                 ; Estimated jiffy timer drift in μs per applied clock update:       53
 
-.if PETSDPLUS
-                jmp LoadClock           ; If we have the RTC, load our time off that
-.else
-                jmp IncrementMinute     ; Otherwise, we increase the minute count
-.endif                
+                jmp IncrementMinute     ; Increase the minute count
 
 ;----------------------------------------------------------------------------
 ; SendCommand
