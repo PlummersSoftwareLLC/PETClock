@@ -385,29 +385,31 @@ UpdateClock:
 
                 sec                     ; Subtract the number of jiffies per minute (2)
                 sbc #<MINUTE_JIFFIES    ;   from the jiffy timer value, low byte    (2) 
-                sta temp                ;   first. Store A in temp, as we need A to (4)
+                sta zptmp               ;   first. Store A in temp, as we need A to (3)
                 txa                     ;   subtract the high byte of the number of (2)
                 sbc #>MINUTE_JIFFIES    ;   jiffies per minute from the middle      (2)
                 tax                     ;   jiffy byte. We put that back in X, put  (2)
                 tya                     ;   the highest jiffy value byte into A     (2)
                 sbc #0                  ;   and complete the 3-byte subtract.       (2)
 
-                bcs @doupdate           ; If carry is set, a minute has passed.     (3)
-                rts                     ; Otherwise, we're done.
+                bcc @noupdate           ; If carry is clear, we're done.            (2)
 
-@doupdate:      tay                     ; Put the highest jiffy value after the     (2)
-                lda temp                ;   subtract back in Y, and load the temp   (4)
-                                        ;   value we saved earlier into A.
+                tay                     ; Put the highest jiffy value byte after    (2)
+                lda zptmp               ;   the subtract back in Y, and load the    (3)
+                                        ;   temp value we saved earlier into A.
 
                 sei                     ; Save updated jiffy timer values with      (2)
-                sty JIFFY_TIMER-2       ;   interrupts disabled                     (3)
+                sty JIFFY_TIMER-2       ;   interrupts disabled.                    (3)
                 stx JIFFY_TIMER-1       ;                                           (3)
                 sta JIFFY_TIMER         ;                                           (3)
                 cli                     ;                                           (2)
                 ;                                                                 +----
-                ; Estimated jiffy timer drift in μs per applied clock update:       53
+                ; Estimated jiffy timer drift in μs per applied clock update:       50
 
-                jmp IncrementMinute     ; Increase the minute count
+                jmp IncrementMinute     ; Increment the minute count
+
+@noupdate:      rts
+
 
 ;----------------------------------------------------------------------------
 ; SendCommand
