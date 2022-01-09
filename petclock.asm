@@ -136,14 +136,13 @@ start:			cld
                 jsr ZeroSeconds         ; Set clock to 0 seconds in the minute
                 jsr LoadClock
 MainLoop:		
+                jsr UpdateClock         ; Update clock values if it's time to do so
                 ldy ClockYPos			
                 ldx ClockXPos
                 jsr DrawClockXY
 
-InnerLoop:		jsr UpdateClockPos      ; Carry will be clear when its time to update
-                bcs MainLoop            ;   clock, check keyboard and move clock
-
-                jsr UpdateClock         ; Update clock values if it's time to do so
+InnerLoop:		jsr UpdateClockPos      ; Carry will be clear when its time to check
+                bcs MainLoop            ;   keyboard and move clock
 
                 jsr GETIN				; Keyboard Handling - check for input
                 cmp #0
@@ -166,7 +165,7 @@ notEscape:
                 cmp #$5A				
                 bne @notZero
                 jsr ZeroSeconds		    ; Z pressed, set seconds to 0
-                jmp MainLoop
+                jmp InnerLoop
 
 @notZero:       cmp #$48				
                 bne @notHour
@@ -195,7 +194,7 @@ notEscape:
 
 ExitApp:			
 .if DEBUG
-                ldy #>loadstr				; Output load text and exit
+                ldy #>loadstr		    ; Output load text and exit
                 lda #<loadstr
                 jsr WriteLine
 .endif
@@ -209,13 +208,13 @@ ExitApp:
 ;-----------------------------------------------------------------------------------
 
 InitVariables:	ldx #ScratchEnd-ScratchStart
-                lda #$00							; Init variables to #0
+                lda #$00				    ; Init variables to #0
 :				sta ScratchStart, x
                 dex
                 cpx #$ff
                 bne :-
 
-                ldx #ClockEnd-ClockStart			; Init all clock digits to '0'
+                ldx #ClockEnd-ClockStart	; Init all clock digits to '0'
                 lda #'0'
 :				sta ClockStart, x
                 dex
@@ -378,7 +377,7 @@ FakeResponse:   .literal "2017-01-09t21:23:45 MON", 0
 ;-----------------------------------------------------------------------------------
 UpdateClock:
                 ; The numbers between brackets are the machine cycles per instruction
-                sei                     ; Load jiffy timer values with interrups    (2)
+                sei                     ; Load jiffy timer values with interrupts   (2)
                 ldy JIFFY_TIMER-2       ;   disabled. Weirdly, the three bytes of   (3)
                 ldx JIFFY_TIMER-1       ;   that value are stored big-endian.       (3)
                 lda JIFFY_TIMER         ;                                           (3)
@@ -386,29 +385,31 @@ UpdateClock:
 
                 sec                     ; Subtract the number of jiffies per minute (2)
                 sbc #<MINUTE_JIFFIES    ;   from the jiffy timer value, low byte    (2) 
-                sta temp                ;   first. Store A in temp, as we need A to (4)
+                sta zptmp               ;   first. Store A in temp, as we need A to (3)
                 txa                     ;   subtract the high byte of the number of (2)
                 sbc #>MINUTE_JIFFIES    ;   jiffies per minute from the middle      (2)
                 tax                     ;   jiffy byte. We put that back in X, put  (2)
                 tya                     ;   the highest jiffy value byte into A     (2)
                 sbc #0                  ;   and complete the 3-byte subtract.       (2)
 
-                bcs @doupdate           ; If carry is set, a minute has passed.     (3)
-                rts                     ; Otherwise, we're done.
+                bcc @noupdate           ; If carry is clear, we're done.            (2)
 
-@doupdate:      tay                     ; Put the highest jiffy value after the     (2)
-                lda temp                ;   subtract back in Y, and load the temp   (4)
-                                        ;   value we saved earlier into A.
+                tay                     ; Put the highest jiffy value byte after    (2)
+                lda zptmp               ;   the subtract back in Y, and load the    (3)
+                                        ;   temp value we saved earlier into A.
 
                 sei                     ; Save updated jiffy timer values with      (2)
-                sty JIFFY_TIMER-2       ;   interrupts disabled                     (3)
+                sty JIFFY_TIMER-2       ;   interrupts disabled.                    (3)
                 stx JIFFY_TIMER-1       ;                                           (3)
                 sta JIFFY_TIMER         ;                                           (3)
                 cli                     ;                                           (2)
                 ;                                                                 +----
-                ; Estimated jiffy timer drift in μs per applied clock update:       53
+                ; Estimated jiffy timer drift in μs per applied clock update:       50
 
-                jmp IncrementMinute     ; Increase the minute count
+                jmp IncrementMinute     ; Increment the minute count
+
+@noupdate:      rts
+
 
 ;----------------------------------------------------------------------------
 ; SendCommand
@@ -416,7 +417,7 @@ UpdateClock:
 ; Sends a command to an IEEE device
 ;----------------------------------------------------------------------------
 
-CommandText:     .literal "T-RI",0        ; Command to read RTC in the petSD+
+CommandText:     .literal "T-RI",0      ; Command to read RTC in the petSD+
 
 SendCommand:    stx zptmpC
                 sty zptmpC+1
@@ -468,7 +469,7 @@ GetDeviceStatus:
                 iny
 	            jmp :-		            ; branch always
 @done:          lda #$00
-                sta DevResponse, y   ; null terminate the buffer instead of CR
+                sta DevResponse, y      ; null terminate the buffer instead of CR
 	            jsr UNTLK   		    ; UNTALK
 	            rts
 
@@ -496,7 +497,7 @@ IncrementMinute:
                 ; fall through to increment hour
 
 IncrementHour:
-                inc HourDigits				; If the hour hit 9, must be 09, so set hour to 10
+                inc HourDigits			; If the hour hit 9, must be 09, so set hour to 10
                 lda #'9'+1
                 cmp HourDigits
                 bne notNineHour
@@ -507,14 +508,14 @@ IncrementHour:
                 sta HourTens
                 rts
 
-notNineHour:	lda #'2'+1					; If it's past not 2 (ie: possible 12 hour) then skip
+notNineHour:	lda #'2'+1				; If it's past not 2 (ie: possible 12 hour) then skip
                 cmp HourDigits				
-                bne doneHour				;   Last digit was 2 but first digit not 1 so go to 3
+                bne doneHour			;   Last digit was 2 but first digit not 1 so go to 3
                 lda #'1'
                 cmp HourTens
                 bne doneHour
 
-                lda #'0'					; Roll from 12 to 01
+                lda #'0'				; Roll from 12 to 01
                 sta HourTens
                 lda #'1'
                 sta HourDigits
