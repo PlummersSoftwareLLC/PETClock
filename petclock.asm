@@ -133,7 +133,6 @@ endOfBasic:		.word 00							;   the +7 expression above, as this is
 
 start:			cld
                 jsr InitVariables       ; Since we can be in ROM, zero stuff out
-                jsr ZeroSeconds         ; Set clock to 0 seconds in the minute
                 jsr LoadClock
 MainLoop:		
                 jsr UpdateClock         ; Update clock values if it's time to do so
@@ -303,10 +302,40 @@ ShowInstructions:
 
 ZeroSeconds:
                 lda #0                  ; Set all 3 bytes of the jiffy timer to zero
-                sei                     ; with interrupts disabled
+                sei                     ;   with interrupts disabled
                 sta JIFFY_TIMER
                 sta JIFFY_TIMER-1
                 sta JIFFY_TIMER-2
+                cli
+                rts
+
+;-----------------------------------------------------------------------------------
+; SetSeconds - Set jiffy timer to a specific number of seconds 
+;-----------------------------------------------------------------------------------
+;          X:  Number of seconds ( < 60 ) to set the jiffy timer to 
+;-----------------------------------------------------------------------------------
+
+SetSeconds:
+                lda #0                  ; Initialize to 0, using Y as the high byte
+                ldy #0
+
+                cpx #0                  ; If we have no seconds to add then we're 
+                beq @writejiffy         ;   done already
+
+                clc                     ; Clear carry for first addition
+
+@loop:          adc #60                 ; Add 60 jiffies for each second. If we've
+                bcc @nextsec            ;   overflown the low byte then increase
+                iny                     ;   the high byte and clear carry again
+                clc
+
+@nextsec:       dex                     ; Decrease second counter and continue if
+                bne @loop               ;   we're not at 0 yet
+                                
+@writejiffy:    sei                     ; Write jiffy timer with interrupts disabled.
+                sta JIFFY_TIMER         ;   In doing so, use the fact that X is
+                sty JIFFY_TIMER-1       ;   guaranteed to be 0 by the time we get here.
+                stx JIFFY_TIMER-2
                 cli
                 rts
 
@@ -338,21 +367,41 @@ LoadClock:
 
                 ; We don't want 24-hour time, so fix it up if needed
                 
-Fix24HourTime:  lda HourTens            
+                lda HourTens            
                 cmp #'0'                ; If the TENS digit is 0, nothing to do 
-                beq ZeroInTens          
+                beq LoadSeconds
 
                 cmp #'2'
-                beq TwoInTens                
-                lda HourDigits          
+                beq TwoInTens
+                lda HourDigits
 
                 cmp #'3'                ; If the ONES digit is < 3, nothing to do
-                bcc ZeroInTens
+                bcc LoadSeconds
                                         ; Hour Tens must be a one a this point
                 dec HourTens            ; But otherwise we back up 12 hours
                 dec HourDigits
                 dec HourDigits
-ZeroInTens:     rts
+
+LoadSeconds:    lda SecTens             ; Load second tens, subtract '0', and 
+                sec                     ;   save the result in X
+                sbc #'0'
+                tax
+
+                lda SecDigits           ; Load second digits and subtract '0' 
+                sbc #'0'
+
+                cpx #0                  ; If we don't have second tens, we're done
+                beq @donesecs
+
+                clc                     ; Otherwise, we add 10 as many times as
+@loop:          adc #10                 ;   we do have tens.
+                dex
+                bne @loop
+
+                tax                     ; Set the jiffy timer to number of seconds,
+                jsr SetSeconds          ;   passing that value in X 
+
+@donesecs:      rts
     
 TwoInTens:      dec HourTens            ; If it's 2X:XX we go back 12 hours
                 dec HourTens            ; Tens digit goes to zero, we give those
@@ -367,7 +416,7 @@ TwoInTens:      dec HourTens            ; If it's 2X:XX we go back 12 hours
                 inc HourTens            ;   and increase the tens value to 1
  
 @donedigits:    sta HourDigits          ; We're good to store our hour digits
-                rts
+                jmp LoadSeconds
 
 FakeResponse:   .literal "2017-01-09t21:23:45 MON", 0
 
