@@ -436,14 +436,14 @@ TwoInTens:      dec HourTens            ; If it's 2X:XX we go back 12 hours
 
 LoadJiffyClock:
 
-                sei                     ; Save jiffy clock with interrupts disabled.
+                sei                     ; Load jiffy clock with interrupts disabled.
                 lda JIFFY_TIMER         ;   We put the low byte in the result variable
-                sta zptmp               ;   zptmp, and the two high bytes in the two 
-                lda JIFFY_TIMER-1       ;   lowest bytes of the remainder. Together with
-                sta remainder           ;   the initial rotate left below, this sets us 
-                lda JIFFY_TIMER-2       ;   up for the most efficient division to get the
-                sta remainder+1         ;   hour value out of the jiffy clock.
-                cli
+                ldx JIFFY_TIMER-1       ;   zptmp, and the two high bytes in the two 
+                ldy JIFFY_TIMER-2       ;   lowest bytes of the remainder. Together with
+                cli                     ;   the initial rotate left below, this sets us 
+                sta zptmp               ;   up for the most efficient division to get the
+                stx remainder           ;   hour value out of the jiffy clock.
+                sty remainder+1
 
                 lda #0                  ; Clear remainder high byte
                 sta remainder+2
