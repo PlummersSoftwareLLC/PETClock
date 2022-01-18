@@ -485,39 +485,35 @@ LoadJiffyClock:
                 sta ClkHourTens         ;   store them in the appropriate fields.
                 stx ClkHourDigits
 
-                lda remainder           ; Bump the remainder one byte to the right, putting
-                sta zptmp               ;   the low byte in the result variable.
-                lda remainder+1
-                sta remainder
-                lda remainder+2
-                sta remainder+1
+                lda remainder           ; Bump the low byte of the remainder in the result
+                sta zptmp               ;   variable.
 
                 rol zptmp               ; Rotate left by two bits to set things up for 
-                rol remainder           ;   the calculation of the minutes. This time, the
-                rol remainder+1         ;   result can be a maximum of 6 bits long (max 
+                rol remainder+1         ;   the calculation of the minutes. This time, the
+                rol remainder+2         ;   result can be a maximum of 6 bits long (max 
                 rol zptmp               ;   minute value is 59, or 111011 in binary).
-                rol remainder
                 rol remainder+1
+                rol remainder+2
                 
                 ldx #6                  ; Perform a 6 step long division
 	
 @mmdiv:
                 rol zptmp               ; Rotate result and remainder left
-                rol remainder
                 rol remainder+1
+                rol remainder+2
                 
                 sec                     ; Subtract the number of jiffies in a minute from
-                lda remainder           ;   the current value in the remainder. That number
+                lda remainder+1         ;   the current value in the remainder. That number
                 sbc #$10                ;   is 3600, or e10 in hex.
                 tay
-                lda remainder+1
+                lda remainder+2
                 sbc #$0e
                 
                 bcc @mmignore           ; If carry was cleared, subtract wasn't possible
                 
-                sta remainder+1         ; Subtract was possible, so save the remaining
+                sta remainder+2         ; Subtract was possible, so save the remaining
                 tya                     ;   value of the remainder in memory.
-                sta remainder
+                sta remainder+1
 	
 @mmignore:	
                 dex                     ; Continue if we have more division steps to take
@@ -529,29 +525,27 @@ LoadJiffyClock:
                 sta ClkMinTens          ;   minute value.
                 stx ClkMinDigits
 
-                lda remainder           ; Bump the remainder one byte to the right, 
-                sta zptmp               ;   putting the low byte in the result variable.
-                lda remainder+1
-                sta remainder
+                lda remainder+1         ; Put the low byte of the remainder in the result 
+                sta zptmp               ;   variable.
 
                 rol zptmp               ; Like before, rotate left by two bits. Like with 
-                rol remainder           ;   minutes, the maximum value of seconds is 59.
+                rol remainder+2         ;   minutes, the maximum value of seconds is 59.
                 rol zptmp
-                rol remainder
+                rol remainder+2
 
                 ldx #6                  ; 6 step long division, like before.
 	
 @secdiv:
                 rol zptmp               ; The below is a pretty straightforward long  
-                rol remainder           ;   division of a two-byte value by 60.
+                rol remainder+2         ;   division of a two-byte value by 60.
                 
                 sec
-                lda remainder
+                lda remainder+2
                 sbc #60
                 
                 bcc @secignore
                 
-                sta remainder
+                sta remainder+2
 	
 @secignore:	
                 dex
