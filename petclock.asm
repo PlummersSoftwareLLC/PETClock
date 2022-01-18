@@ -58,6 +58,7 @@ ScratchStart:
    MultiplyTemp:	 .res  1            ; Scratch variable for multiply code
    resultLo:		 .res  1			; Results from multiply operations
    resultHi:		 .res  1
+   remainder:        .res  3            ; Remainder for jiffy load division
 ScratchEnd:		 
 
 ; This is where we store the time
@@ -340,7 +341,7 @@ SetSeconds:
                 rts
 
 ;-----------------------------------------------------------------------------------
-; LoadClock - Sets the current time of day from hardware or a fake value
+; LoadClock - Sets the current time of day from hardware or the jiffy clock
 ;-----------------------------------------------------------------------------------
 
 LoadClock:
@@ -350,7 +351,7 @@ LoadClock:
                 jsr SendCommand         ; Fetch time from Real Time Clock on petSD+
                 jsr GetDeviceStatus
 .else
-                jsr SetFakeResponse
+                jsr LoadJiffyClock
 .endif
                 lda ClkHourTens
                 sta HourTens
@@ -418,7 +419,182 @@ TwoInTens:      dec HourTens            ; If it's 2X:XX we go back 12 hours
 @donedigits:    sta HourDigits          ; We're good to store our hour digits
                 jmp LoadSeconds
 
-FakeResponse:   .literal "2017-01-09t21:23:45 MON", 0
+
+;-----------------------------------------------------------------------------------
+; LoadJiffyClock - Sets the clock structure fields to time in jiffy clock
+;-----------------------------------------------------------------------------------
+
+LoadJiffyClock:
+
+                sei                     ; Save jiffy clock with interrupts disabled.
+                lda JIFFY_TIMER         ;   We put the low byte in the result variable
+                sta zptmp               ;   zptmp, and the two high bytes in the two 
+                lda JIFFY_TIMER-1       ;   lowest bytes of the remainder. Together with
+                sta remainder           ;   the initial rotate left below, this sets us 
+                lda JIFFY_TIMER-2       ;   up for the most efficient division to get the
+                sta remainder+1         ;   hour value out of the jiffy clock.
+                cli
+
+                lda #0                  ; Clear remainder high byte
+                sta remainder+2
+                
+                ldx #3
+
+@hhrol:	
+                rol zptmp               ; We rotate the result and remainder left 3 bits. 
+                rol remainder           ;   We do this knowing that the result can be a
+                rol remainder+1         ;   maximum of 5 bits long (max hour value is 23
+                rol remainder+2         ;   or 10111 in binary).
+                
+                dex
+                bne @hhrol
+                
+                ldx #5                  ; We will perform a 5 step long division
+	
+@hhdiv:
+                rol zptmp               ; Rotate result and remainder left
+                rol remainder
+                rol remainder+1
+                rol remainder+2
+                
+                sec                     ; Subtract the number of jiffies in an hour from the
+                lda remainder           ;   current value in the remainder. That number is 
+                sbc #$c0                ;   216,000 or 34bc0 in hex. 
+                tay 
+                lda remainder+1
+                sbc #$4b
+                sta zptmpB
+                lda remainder+2
+                sbc #$03
+                
+                bcc @hhignore           ; If carry was cleared, subtract wasn't possible
+                
+                sta remainder+2         ; Subtract was possible, so save the remaining value 
+                lda zptmpB              ;   of the remainder in memory.
+                sta remainder+1
+                tya
+                sta remainder
+	
+@hhignore:
+                dex                     ; Continue if we have more division steps to take
+                bne @hhdiv
+                
+                rol zptmp               ; Don't forget to shift the last bit into the result
+                
+                jsr SplitZptmpDigits    ; Split the digits of the calculated hour value and
+                sta ClkHourTens         ;   store them in the appropriate fields.
+                stx ClkHourDigits
+
+                lda remainder           ; Bump the remainder one byte to the right, putting
+                sta zptmp               ;   the low byte in the result variable.
+                lda remainder+1
+                sta remainder
+                lda remainder+2
+                sta remainder+1
+
+                rol zptmp               ; Rotate left by two bits to set things up for 
+                rol remainder           ;   the calculation of the minutes. This time, the
+                rol remainder+1         ;   result can be a maximum of 6 bits long (max 
+                rol zptmp               ;   minute value is 59, or 111011 in binary).
+                rol remainder
+                rol remainder+1
+                
+                ldx #6                  ; Perform a 6 step long division
+	
+@mmdiv:
+                rol zptmp               ; Rotate result and remainder left
+                rol remainder
+                rol remainder+1
+                
+                sec                     ; Subtract the number of jiffies in a minute from
+                lda remainder           ;   the current value in the remainder. That number
+                sbc #$10                ;   is 3600, or e10 in hex.
+                tay
+                lda remainder+1
+                sbc #$0e
+                
+                bcc @mmignore           ; If carry was cleared, subtract wasn't possible
+                
+                sta remainder+1         ; Subtract was possible, so save the remaining
+                tya                     ;   value of the remainder in memory.
+                sta remainder
+	
+@mmignore:	
+                dex                     ; Continue if we have more division steps to take
+                bne @mmdiv
+                
+                rol zptmp               ; Don't forget to shift the last bit into the result
+	
+                jsr SplitZptmpDigits    ; Split and store the digits of the calculated
+                sta ClkMinTens          ;   minute value.
+                stx ClkMinDigits
+
+                lda remainder           ; Bump the remainder one byte to the right, 
+                sta zptmp               ;   putting the low byte in the result variable.
+                lda remainder+1
+                sta remainder
+
+                rol zptmp               ; Like before, rotate left by two bits. Like with 
+                rol remainder           ;   minutes, the maximum value of seconds is 59.
+                rol zptmp
+                rol remainder
+
+                ldx #6                  ; 6 step long division, like before.
+	
+@secdiv:
+                rol zptmp               ; The below is a pretty straightforward long  
+                rol remainder           ;   division of a two-byte value by 60.
+                
+                sec
+                lda remainder
+                sbc #60
+                
+                bcc @secignore
+                
+                sta remainder
+	
+@secignore:	
+                dex
+                bne @secdiv
+                
+                rol zptmp
+	
+                jsr SplitZptmpDigits    ; Split and store the digits of the calculated  
+                sta ClkSecTens          ;   second value.
+                stx ClkSecDigits
+
+                rts
+
+
+;-----------------------------------------------------------------------------------
+; Split the tens and digits of the value in zptmp
+;-----------------------------------------------------------------------------------
+;       OUT A:  tens character
+;       OUT X:  digit character
+;-----------------------------------------------------------------------------------
+
+SplitZptmpDigits:
+                lda zptmp
+                ldy #0
+                
+                sec
+	
+@tensloop:
+                sbc #10                 ; Subtract 10 until we dive below zero. Every
+                bcc @belowzero          ;   time we stay above zero, we increase Y.
+                
+                iny
+                bcs @tensloop
+	
+@belowzero:
+                adc #'0'+10             ; Calculate digit character and put it in X
+                tax
+                
+                tya                     ; Pull tens out of Y and calculate tens character
+                clc
+                adc #'0'
+                
+                rts
 
 
 ;-----------------------------------------------------------------------------------
@@ -1007,13 +1183,3 @@ Instructions:
                 .literal "         press runstop to exit", $00
 
 dirname:        .literal "$",0
-
-SetFakeResponse:
-                ldy #0
-:               lda FakeResponse, y
-                sta DevResponse, y
-                beq :+
-                iny
-                jmp :-
-:               rts
-
