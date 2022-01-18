@@ -6,6 +6,16 @@
 ;-----------------------------------------------------------------------------------
 ; Environment: xpet -fs9 d:\OneDrive\PET\source\ -device9 1
 ;            : PET 2001
+;-----------------------------------------------------------------------------------
+; On PETs that don't have a petSD+, the clock will be initialized from the internal
+; system (jiffy) clock in the PET. The system clock can be initialized in BASIC 
+; before running this clock, by issuing the following command:
+;
+; TI$="HHMMSS"
+;
+; The hours can be specified in 24-hour format; they will be converted to 12-hour
+; format, as is the time read from the petSD+.
+
 
 .SETCPU "65C02"
 
