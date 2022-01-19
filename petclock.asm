@@ -539,7 +539,7 @@ LoadJiffyClock:
                 lda remainder+1         ; Put the low byte of the remainder in the result 
                 sta zptmp               ;   variable.
 
-                ; Extract seconds from jiffy clock. We need one remainder bytes and one result
+                ; Extract seconds from jiffy clock. We need one remainder byte and one result
                 ;   byte because divisor and result are both < 256
                 rol zptmp               ; Like before, rotate left by two bits. Like with 
                 rol remainder+2         ;   minutes, the maximum value of seconds is 59.
