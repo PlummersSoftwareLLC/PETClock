@@ -435,7 +435,6 @@ TwoInTens:      dec HourTens            ; If it's 2X:XX we go back 12 hours
 ;-----------------------------------------------------------------------------------
 
 LoadJiffyClock:
-
                 sei                     ; Load jiffy clock with interrupts disabled.
                 lda JIFFY_TIMER         ;   We put the low byte in the result variable
                 ldx JIFFY_TIMER-1       ;   zptmp, and the two high bytes in the two 
@@ -450,8 +449,7 @@ LoadJiffyClock:
                 
                 ldx #3
 
-@hhrol:	
-                rol zptmp               ; We rotate the result and remainder left 3 bits. 
+@hhrol:         rol zptmp               ; We rotate the result and remainder left 3 bits. 
                 rol remainder           ;   We do this knowing that the result can be a
                 rol remainder+1         ;   maximum of 5 bits long (max hour value is 23
                 rol remainder+2         ;   or 10111 in binary).
@@ -461,8 +459,7 @@ LoadJiffyClock:
                 
                 ldx #5                  ; We will perform a 5 step long division
 	
-@hhdiv:
-                rol zptmp               ; Rotate result and remainder left
+@hhdiv:         rol zptmp               ; Rotate result and remainder left
                 rol remainder
                 rol remainder+1
                 rol remainder+2
@@ -485,8 +482,7 @@ LoadJiffyClock:
                 tya
                 sta remainder
 	
-@hhignore:
-                dex                     ; Continue if we have more division steps to take
+@hhignore:      dex                     ; Continue if we have more division steps to take
                 bne @hhdiv
                 
                 rol zptmp               ; Don't forget to shift the last bit into the result
@@ -508,8 +504,7 @@ LoadJiffyClock:
                 
                 ldx #6                  ; Perform a 6 step long division
 	
-@mmdiv:
-                rol zptmp               ; Rotate result and remainder left
+@mmdiv:         rol zptmp               ; Rotate result and remainder left
                 rol remainder+1
                 rol remainder+2
                 
@@ -526,8 +521,7 @@ LoadJiffyClock:
                 tya                     ;   value of the remainder in memory.
                 sta remainder+1
 	
-@mmignore:	
-                dex                     ; Continue if we have more division steps to take
+@mmignore:	    dex                     ; Continue if we have more division steps to take
                 bne @mmdiv
                 
                 rol zptmp               ; Don't forget to shift the last bit into the result
@@ -547,8 +541,7 @@ LoadJiffyClock:
 
                 ldx #6                  ; 6 step long division, like before.
 	
-@secdiv:
-                rol zptmp               ; The below is a pretty straightforward long  
+@secdiv:        rol zptmp               ; The below is a pretty straightforward long  
                 rol remainder+2         ;   division of a two-byte value by 60.
                 
                 sec
@@ -559,8 +552,7 @@ LoadJiffyClock:
                 
                 sta remainder+2
 	
-@secignore:	
-                dex
+@secignore:	    dex
                 bne @secdiv
                 
                 rol zptmp
@@ -587,15 +579,13 @@ GetDigitChars:
                 
                 sec
 	
-@tensloop:
-                sbc #10                 ; Subtract 10 until we dive below zero. Every
+@tensloop:      sbc #10                 ; Subtract 10 until we dive below zero. Every
                 bcc @belowzero          ;   time we stay above zero, we increase X.
                 
                 inx
                 bcs @tensloop
 	
-@belowzero:
-                adc #'0'+10             ; Calculate digit character and put it in Y
+@belowzero:     adc #'0'+10             ; Calculate digit character and put it in Y
                 tay
                 
                 txa                     ; Pull tens out of X and calculate tens character
