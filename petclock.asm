@@ -27,6 +27,7 @@ PETSDPLUS       = 0                 ; When TRUE, read RTC from petSD+
 
 DEVICE_NUM      = 9
 MINUTE_JIFFIES  = 3600              ; Number of jiffies in a minute
+SECOND_JIFFIES  = 60                ; Number of jiffies in a second
 
 .INCLUDE "pet.inc"
 .INCLUDE "basic4.inc"
@@ -447,6 +448,8 @@ LoadJiffyClock:
                 lda #0                  ; Clear remainder high byte
                 sta remainder+2
                 
+                ; Extract hour from jiffy clock. We need 3 remainder bytes and one result
+                ;   byte because the divisor is 3 bytes, and the result < 256
                 ldx #3
 
 @hhrol:         rol zptmp               ; We rotate the result and remainder left 3 bits. 
@@ -495,6 +498,8 @@ LoadJiffyClock:
                 lda remainder           ; Bump the low byte of the remainder in the result
                 sta zptmp               ;   variable.
 
+                ; Extract minutes from jiffy clock. We need 2 remainder bytes and one result
+                ;   byte because the divisor is 2 bytes, and the result < 256
                 rol zptmp               ; Rotate left by two bits to set things up for 
                 rol remainder+1         ;   the calculation of the minutes. This time, the
                 rol remainder+2         ;   result can be a maximum of 6 bits long (max 
@@ -509,11 +514,11 @@ LoadJiffyClock:
                 rol remainder+2
                 
                 sec                     ; Subtract the number of jiffies in a minute from
-                lda remainder+1         ;   the current value in the remainder. That number
-                sbc #$10                ;   is 3600, or e10 in hex.
+                lda remainder+1         ;   the current value in the remainder.
+                sbc #<MINUTE_JIFFIES
                 tay
                 lda remainder+2
-                sbc #$0e
+                sbc #>MINUTE_JIFFIES
                 
                 bcc @mmignore           ; If carry was cleared, subtract wasn't possible
                 
@@ -534,6 +539,8 @@ LoadJiffyClock:
                 lda remainder+1         ; Put the low byte of the remainder in the result 
                 sta zptmp               ;   variable.
 
+                ; Extract seconds from jiffy clock. We need one remainder bytes and one result
+                ;   byte because divisor and result are both < 256
                 rol zptmp               ; Like before, rotate left by two bits. Like with 
                 rol remainder+2         ;   minutes, the maximum value of seconds is 59.
                 rol zptmp
@@ -546,7 +553,7 @@ LoadJiffyClock:
                 
                 sec
                 lda remainder+2
-                sbc #60
+                sbc #SECOND_JIFFIES
                 
                 bcc @secignore
                 
