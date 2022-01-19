@@ -3,6 +3,7 @@
 ;-----------------------------------------------------------------------------------
 ; (c) Dave Plummer, 12/26/2016. If you can read it, you can use it! No warranties!
 ;                   12/26/2021. Ported to the cc65 assembler package (davepl)
+;                   01/19/2022. Run clock based on jiffy/RTC time (rbergen)
 ;-----------------------------------------------------------------------------------
 ; Environment: xpet -fs9 d:\OneDrive\PET\source\ -device9 1
 ;            : PET 2001
@@ -24,6 +25,7 @@ PET             = 1
 DEBUG           = 1					; Enable code that only is included for debug builds
 EPROM           = 0					; When TRUE, no BASIC stub, no load address in file
 PETSDPLUS       = 0                 ; When TRUE, read RTC from petSD+
+SHOWAM          = 1                 ; Use a dot separator for AM and colon for PM
 
 DEVICE_NUM      = 9
 MINUTE_JIFFIES  = 3600              ; Number of jiffies in a minute
@@ -974,8 +976,16 @@ DrawClockXY:	stx ClockX
                 clc
                 adc ClockY
                 tay
+.if SHOWAM
+                lda #0
+                cmp PmFlag
+                bne @pm
+                lda #'.'
+                jmp @firstdigit
+@pm:
+.endif
                 lda #':'
-                jsr DrawBigChar
+@firstdigit:    jsr DrawBigChar
 
                 clc					; First digit of minutes
                 lda #21
@@ -1220,6 +1230,8 @@ FoundChar:		iny
 CharTable:
                 .literal ":"
                 .word  CharColon
+                .literal "."
+                .word  CharLowDot
                 .literal "0"
                 .word  Char0
                 .literal "1"
@@ -1328,6 +1340,14 @@ CharColon:
                 .byte	%00000000
                 .byte	%00011000
                 .byte	%00011000
+                .byte	%00000000
+                .byte	%00011000
+                .byte	%00011000
+                .byte	%00000000
+CharLowDot:
+                .byte	%00000000
+                .byte	%00000000
+                .byte	%00000000
                 .byte	%00000000
                 .byte	%00011000
                 .byte	%00011000
