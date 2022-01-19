@@ -336,7 +336,7 @@ SetSeconds:
 
                 clc                     ; Clear carry for first addition
 
-@loop:          adc #60                 ; Add 60 jiffies for each second. If we've
+@loop:          adc #SECOND_JIFFIES     ; Add 60 jiffies for each second. If we've
                 bcc @nextsec            ;   overflown the low byte then increase
                 iny                     ;   the high byte and clear carry again
                 clc
