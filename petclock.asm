@@ -6,6 +6,16 @@
 ;-----------------------------------------------------------------------------------
 ; Environment: xpet -fs9 d:\OneDrive\PET\source\ -device9 1
 ;            : PET 2001
+;-----------------------------------------------------------------------------------
+; On PETs that don't have a petSD+, the clock will be initialized from the internal
+; system (jiffy) clock in the PET. The system clock can be initialized in BASIC 
+; before running this clock, by issuing the following command:
+;
+; TI$="HHMMSS"
+;
+; The hours can be specified in 24-hour format; they will be converted to 12-hour
+; format, as is the time read from the petSD+.
+
 
 .SETCPU "65C02"
 
@@ -17,6 +27,7 @@ PETSDPLUS       = 0                 ; When TRUE, read RTC from petSD+
 
 DEVICE_NUM      = 9
 MINUTE_JIFFIES  = 3600              ; Number of jiffies in a minute
+SECOND_JIFFIES  = 60                ; Number of jiffies in a second
 
 .INCLUDE "pet.inc"
 .INCLUDE "basic4.inc"
@@ -58,6 +69,8 @@ ScratchStart:
    MultiplyTemp:	 .res  1            ; Scratch variable for multiply code
    resultLo:		 .res  1			; Results from multiply operations
    resultHi:		 .res  1
+   remainder:        .res  3            ; Remainder for jiffy load division
+   PmFlag:           .res  1            ; Keep track of AM/PM. AM=0, PM=1
 ScratchEnd:		 
 
 ; This is where we store the time
@@ -133,7 +146,6 @@ endOfBasic:		.word 00							;   the +7 expression above, as this is
 
 start:			cld
                 jsr InitVariables       ; Since we can be in ROM, zero stuff out
-                jsr ZeroSeconds         ; Set clock to 0 seconds in the minute
                 jsr LoadClock
 MainLoop:		
                 jsr UpdateClock         ; Update clock values if it's time to do so
@@ -192,7 +204,13 @@ notEscape:
 @notMinDn:		jsr ShowInstructions	; Any other key shows the help text
                 jmp InnerLoop			;  which gets erased after a few seconds
 
-ExitApp:			
+ExitApp:		
+.if !PETSDPLUS
+                jsr UpdateJiffyClock    ; Set jiffy clock to our time
+.endif
+
+                jsr ClearScreen
+
 .if DEBUG
                 ldy #>loadstr		    ; Output load text and exit
                 lda #<loadstr
@@ -220,6 +238,7 @@ InitVariables:	ldx #ScratchEnd-ScratchStart
                 dex
                 cpx #$ff
                 bne :-
+
                 rts
                 
 ;-----------------------------------------------------------------------------------
@@ -297,21 +316,44 @@ ShowInstructions:
                 bne @loop
 @done:			rts
 
+
 ;-----------------------------------------------------------------------------------
 ; ZeroSeconds - (Re)sets the second zero point to now
 ;-----------------------------------------------------------------------------------
 
 ZeroSeconds:
-                lda #0                  ; Set all 3 bytes of the jiffy timer to zero
-                sei                     ; with interrupts disabled
-                sta JIFFY_TIMER
-                sta JIFFY_TIMER-1
-                sta JIFFY_TIMER-2
+                lda #0
+                ldx #0
+                jmp writeJiffy
+
+;-----------------------------------------------------------------------------------
+; SetSeconds - Set jiffy timer to a specific number of seconds 
+;-----------------------------------------------------------------------------------
+;          X:  Number of seconds ( < 60 ) to set the jiffy timer to 
+;-----------------------------------------------------------------------------------
+
+SetSeconds:
+                cpx #0                  ; Calculate jiffies if we have seconds to add
+                bne @calcjiffies
+
+                lda #0                  ; Zero out A and proceed to write 
+                beq writeJiffy
+
+@calcjiffies:   ldy #SECOND_JIFFIES     ; Multiply seconds by jiffies per second
+                jsr Multiply            ;   and load results in registers
+                lda resultLo
+                ldx resultHi
+
+writeJiffy:     ldy #0                  ; Highest byte is always 0
+                sei                     ; Write jiffy timer with interrupts disabled.
+                sta JIFFY_TIMER       
+                stx JIFFY_TIMER-1
+                sty JIFFY_TIMER-2
                 cli
                 rts
 
 ;-----------------------------------------------------------------------------------
-; LoadClock - Sets the current time of day from hardware or a fake value
+; LoadClock - Sets the current time of day from hardware or the jiffy clock
 ;-----------------------------------------------------------------------------------
 
 LoadClock:
@@ -321,7 +363,7 @@ LoadClock:
                 jsr SendCommand         ; Fetch time from Real Time Clock on petSD+
                 jsr GetDeviceStatus
 .else
-                jsr SetFakeResponse
+                jsr LoadJiffyClock
 .endif
                 lda ClkHourTens
                 sta HourTens
@@ -335,24 +377,49 @@ LoadClock:
                 sta SecTens
                 lda ClkSecDigits
                 sta SecDigits
+                lda #0
+                sta PmFlag              ; It's AM unless we find otherwise
 
                 ; We don't want 24-hour time, so fix it up if needed
                 
-Fix24HourTime:  lda HourTens            
-                cmp #'0'                ; If the TENS digit is 0, nothing to do 
-                beq ZeroInTens          
+                lda HourTens            
+                ldx HourDigits
 
-                cmp #'2'
-                beq TwoInTens                
-                lda HourDigits          
+                cmp #'0'                ; Check if TENS digit is 0 
+                bne @tensnotzero
 
-                cmp #'3'                ; If the ONES digit is < 3, nothing to do
-                bcc ZeroInTens
-                                        ; Hour Tens must be a one a this point
+                cpx #'0'                ; Check if ONES digit is 0. If so, it's
+                bne LoadSeconds         ; actually 12.
+
+                lda #'1'
+                sta HourTens
+                lda #'2'
+                sta HourDigits
+
+                jmp LoadSeconds
+
+@tensnotzero:   cmp #'2'                ; Check if TENS digits is 2
+                beq TwoInTens           
+
+                cpx #'2'                ; If the ONES digit is < 2, we're done
+                bcc LoadSeconds
+
+                lda #1                  ; Hours >= 12, so it's PM
+                sta PmFlag
+
+                cpx #'3'                ; If the ONES digit is >= 3, deduct 12
+                bcc LoadSeconds
+
                 dec HourTens            ; But otherwise we back up 12 hours
                 dec HourDigits
                 dec HourDigits
-ZeroInTens:     rts
+
+LoadSeconds:    ldx SecTens
+                ldy SecDigits
+                jsr GetCharsValue       ; Convert second digits to value and set
+                jsr SetSeconds          ;   them.
+
+                rts
     
 TwoInTens:      dec HourTens            ; If it's 2X:XX we go back 12 hours
                 dec HourTens            ; Tens digit goes to zero, we give those
@@ -367,9 +434,300 @@ TwoInTens:      dec HourTens            ; If it's 2X:XX we go back 12 hours
                 inc HourTens            ;   and increase the tens value to 1
  
 @donedigits:    sta HourDigits          ; We're good to store our hour digits
+                lda #1
+                sta PmFlag              ; It's definitely PM
+                jmp LoadSeconds
+
+
+;-----------------------------------------------------------------------------------
+; LoadJiffyClock - Sets the clock structure fields to time in jiffy clock
+;-----------------------------------------------------------------------------------
+
+LoadJiffyClock:
+                sei                     ; Load jiffy clock with interrupts disabled.
+                lda JIFFY_TIMER         ;   We put the low byte in the result variable
+                ldx JIFFY_TIMER-1       ;   zptmp, and the two high bytes in the two 
+                ldy JIFFY_TIMER-2       ;   lowest bytes of the remainder. Together with
+                cli                     ;   the initial rotate left below, this sets us 
+                sta zptmp               ;   up for the most efficient division to get the
+                stx remainder           ;   hour value out of the jiffy clock.
+                sty remainder+1
+
+                lda #0                  ; Clear remainder high byte
+                sta remainder+2
+                
+                ; Extract hour from jiffy clock. We need 3 remainder bytes and one result
+                ;   byte because the divisor is 3 bytes, and the result < 256
+                ldx #3
+
+@hhrol:         rol zptmp               ; We rotate the result and remainder left 3 bits. 
+                rol remainder           ;   We do this knowing that the result can be a
+                rol remainder+1         ;   maximum of 5 bits long (max hour value is 23
+                rol remainder+2         ;   or 10111 in binary).
+                
+                dex
+                bne @hhrol
+                
+                ldx #5                  ; We will perform a 5 step long division
+	
+@hhdiv:         rol zptmp               ; Rotate result and remainder left
+                rol remainder
+                rol remainder+1
+                rol remainder+2
+                
+                sec                     ; Subtract the number of jiffies in an hour from the
+                lda remainder           ;   current value in the remainder. That number is 
+                sbc #$c0                ;   216,000 or 34bc0 in hex. 
+                tay 
+                lda remainder+1
+                sbc #$4b
+                sta zptmpB
+                lda remainder+2
+                sbc #$03
+                
+                bcc @hhignore           ; If carry was cleared, subtract wasn't possible
+                
+                sta remainder+2         ; Subtract was possible, so save the remaining value 
+                lda zptmpB              ;   of the remainder in memory.
+                sta remainder+1
+                tya
+                sta remainder
+	
+@hhignore:      dex                     ; Continue if we have more division steps to take
+                bne @hhdiv
+                
+                rol zptmp               ; Don't forget to shift the last bit into the result
+                
+                ldx zptmp
+                jsr GetDigitChars       ; Split the digits of the calculated hour value and
+                stx ClkHourTens         ;   store them in the appropriate fields.
+                sty ClkHourDigits
+
+                lda remainder           ; Bump the low byte of the remainder in the result
+                sta zptmp               ;   variable.
+
+                ; Extract minutes from jiffy clock. We need 2 remainder bytes and one result
+                ;   byte because the divisor is 2 bytes, and the result < 256
+                rol zptmp               ; Rotate left by two bits to set things up for 
+                rol remainder+1         ;   the calculation of the minutes. This time, the
+                rol remainder+2         ;   result can be a maximum of 6 bits long (max 
+                rol zptmp               ;   minute value is 59, or 111011 in binary).
+                rol remainder+1
+                rol remainder+2
+                
+                ldx #6                  ; Perform a 6 step long division
+	
+@mmdiv:         rol zptmp               ; Rotate result and remainder left
+                rol remainder+1
+                rol remainder+2
+                
+                sec                     ; Subtract the number of jiffies in a minute from
+                lda remainder+1         ;   the current value in the remainder.
+                sbc #<MINUTE_JIFFIES
+                tay
+                lda remainder+2
+                sbc #>MINUTE_JIFFIES
+                
+                bcc @mmignore           ; If carry was cleared, subtract wasn't possible
+                
+                sta remainder+2         ; Subtract was possible, so save the remaining
+                tya                     ;   value of the remainder in memory.
+                sta remainder+1
+	
+@mmignore:	    dex                     ; Continue if we have more division steps to take
+                bne @mmdiv
+                
+                rol zptmp               ; Don't forget to shift the last bit into the result
+	
+                ldx zptmp
+                jsr GetDigitChars       ; Split and store the digits of the calculated
+                stx ClkMinTens          ;   minute value.
+                sty ClkMinDigits
+
+                lda remainder+1         ; Put the low byte of the remainder in the result 
+                sta zptmp               ;   variable.
+
+                ; Extract seconds from jiffy clock. We need one remainder byte and one result
+                ;   byte because divisor and result are both < 256
+                rol zptmp               ; Like before, rotate left by two bits. Like with 
+                rol remainder+2         ;   minutes, the maximum value of seconds is 59.
+                rol zptmp
+                rol remainder+2
+
+                ldx #6                  ; 6 step long division, like before.
+	
+@secdiv:        rol zptmp               ; The below is a pretty straightforward long  
+                rol remainder+2         ;   division of a two-byte value by 60.
+                
+                sec
+                lda remainder+2
+                sbc #SECOND_JIFFIES
+                
+                bcc @secignore
+                
+                sta remainder+2
+	
+@secignore:	    dex
+                bne @secdiv
+                
+                rol zptmp
+	
+                ldx zptmp
+                jsr GetDigitChars       ; Split and store the digits of the calculated  
+                stx ClkSecTens          ;   second value.
+                sty ClkSecDigits
+
                 rts
 
-FakeResponse:   .literal "2017-01-09t21:23:45 MON", 0
+
+;-----------------------------------------------------------------------------------
+; GetDigitChars - Calculate the tens and digits characters of the value in X
+;-----------------------------------------------------------------------------------
+;       IN  X:  value to split and convert 
+;       OUT X:  tens character
+;       OUT Y:  digit character
+;-----------------------------------------------------------------------------------
+
+GetDigitChars:
+                txa
+                ldx #0
+                
+                sec
+	
+@tensloop:      sbc #10                 ; Subtract 10 until we dive below zero. Every
+                bcc @belowzero          ;   time we stay above zero, we increase X.
+                
+                inx
+                bcs @tensloop
+	
+@belowzero:     adc #'0'+10             ; Calculate digit character and put it in Y
+                tay
+                
+                txa                     ; Pull tens out of X and calculate tens character
+                clc
+                adc #'0'
+                tax
+                
+                rts
+
+;-----------------------------------------------------------------------------------
+; UpdateJiffyClock - Sets the jiffy clock to the time we say it is
+;-----------------------------------------------------------------------------------
+
+UpdateJiffyClock:
+                lda #0                  ; Clear out the remainder buffer. We'll 
+                sta remainder           ;   reuse that buffer for this.
+                sta remainder+1
+                sta remainder+2
+
+                ldx HourTens
+                ldy HourDigits
+                jsr GetCharsValue       ; Convert hours characters to value
+
+                lda #0                  ; Check the PM flag
+                cmp PmFlag
+                bne @pm
+
+                cpx #12                 ; If it's 12 AM, skip adding hours 
+                beq @addminutes
+                bne @addhours
+
+@pm:            cpx #12                 ; Add 12 hours unless it's 12 PM
+                beq @addhours           
+                
+                txa
+                clc
+                adc #12
+                tax
+
+@addhours:      clc
+@hhloop:        lda #$c0                ; Perform a three-byte add. We're adding the number
+                adc remainder           ;   of jiffies per hour, which is 216,000 or 34bc0
+                sta remainder           ;   in hex.
+                lda #$4b
+                adc remainder+1
+                sta remainder+1
+                lda #$03
+                adc remainder+2
+                sta remainder+2
+
+                dex                     ; Decrease hour count and continue if necessary
+                bne @hhloop
+
+@addminutes:    ldx MinTens
+                ldy MinDigits
+                jsr GetCharsValue       ; Convert minute characters to value
+
+                cpx #0                  ; No minutes? Skip adding.
+                beq @addjiffy
+
+                clc
+@mmloop:        lda #<MINUTE_JIFFIES    ; Perform a two-byte add and extend for carry
+                adc remainder
+                sta remainder
+                lda #>MINUTE_JIFFIES
+                adc remainder+1
+                sta remainder+1
+                lda #0
+                adc remainder+2
+                sta remainder+2
+
+                dex                     ; Decrease minute count and continue if necessary
+                bne @mmloop
+
+@addjiffy:      lda remainder           ; Check if we have anything to add to current
+                ora remainder+1         ;   jiffy. This is true unless it is midnight.
+                ora remainder+2
+
+                beq @done
+
+                lda remainder           ; Load hour and minute jiffies in registers, so
+                ldx remainder+1         ;   we can keep the interrupts disabled for the
+                ldy remainder+2         ;   shortest duration possible.
+
+                clc
+
+                sei                     ; Add the seconds and change in the jiffy timer
+                adc JIFFY_TIMER         ;   to what we calculated and store the result
+                sta JIFFY_TIMER         ;   as the new value of the jiffy timer.
+                txa
+                adc JIFFY_TIMER-1
+                sta JIFFY_TIMER-1
+                tya
+                adc JIFFY_TIMER-2
+                sta JIFFY_TIMER-2
+                cli
+
+@done:          rts
+
+;-----------------------------------------------------------------------------------
+;  GetCharsValue - Convert tens and digits character to combined value
+;-----------------------------------------------------------------------------------
+;       IN  X:  tens digit 
+;       IN  Y:  digit character
+;       OUT X:  value that characters represent
+;-----------------------------------------------------------------------------------
+
+GetCharsValue:
+                sec
+
+                txa                     ; Take '0' off X
+                sbc #'0'
+                tax
+
+                tya                     ; Take '0' off Y
+                sbc #'0'
+
+                cpx #0                  ; If tens is 0, we're done
+                beq @done
+
+                clc
+@loop:          adc #10                 ; Add tens to value
+                dex
+                bne @loop
+
+@done:          tax                     ; We return in X
+                rts
 
 
 ;-----------------------------------------------------------------------------------
@@ -497,28 +855,37 @@ IncrementMinute:
                 ; fall through to increment hour
 
 IncrementHour:
-                inc HourDigits			; If the hour hit 9, must be 09, so set hour to 10
+                ldx #'1'                ; We put 1 in X because we need it for quite a few
+                                        ;   things down here
+                cpx HourDigits          ; Check if it's the 11th hour. If so, we're switching 
+                bne @noteleven          ;   from AM to PM or the other way around.
+                cpx HourTens
+                bne @noteleven
+
+                lda PmFlag              ; Load PM flag, flip bit, save
+                eor #1
+                sta PmFlag              
+
+@noteleven:     inc HourDigits			; If the hour hit 9, must be 09, so set hour to 10
                 lda #'9'+1
                 cmp HourDigits
                 bne notNineHour
             
                 lda #'0'
                 sta HourDigits
-                lda #'1'
-                sta HourTens
+                stx HourTens            ; X still holds 1
                 rts
 
 notNineHour:	lda #'2'+1				; If it's past not 2 (ie: possible 12 hour) then skip
                 cmp HourDigits				
-                bne doneHour			;   Last digit was 2 but first digit not 1 so go to 3
-                lda #'1'
-                cmp HourTens
+                bne doneHour			; Last digit was 2 but first digit not 1 so go to 3
+                
+                cpx HourTens            ; X still holds 1
                 bne doneHour
 
                 lda #'0'				; Roll from 12 to 01
                 sta HourTens
-                lda #'1'
-                sta HourDigits
+                stx HourDigits          ; X still holds 1
 doneHour:		rts
 
 DecrementMinute:
@@ -545,19 +912,33 @@ DecrementHour:
                 sta HourDigits
                 lda #'0'
                 sta HourTens
+
                 rts
 
 notsubzero:		lda #'1'-1			    ; If we're going under 1 
                 cmp HourDigits
-                bne doneDec
+                bne @chkeleven
                 lda #'0'
                 cmp HourTens
-                bne doneDec
+                bne @chkeleven
                 lda #'1'
                 sta HourTens
                 lda #'2'
                 sta HourDigits
-doneDec:			rts
+
+                rts
+
+@chkeleven:     lda #'1'                ; If it's now the 11th hour, we switched from PM to AM or
+                cmp HourDigits          ;   the other way around.
+                bne doneDec
+                cmp HourTens
+                bne doneDec
+
+                lda PmFlag              ; Load PM flag, flip bit, save
+                eor #1
+                sta PmFlag              
+
+doneDec:		rts
         
 ;-----------------------------------------------------------------------------------
 ; DrawClockXY	- Draws the current clock at the specified X/Y location on screen
@@ -958,13 +1339,3 @@ Instructions:
                 .literal "         press runstop to exit", $00
 
 dirname:        .literal "$",0
-
-SetFakeResponse:
-                ldy #0
-:               lda FakeResponse, y
-                sta DevResponse, y
-                beq :+
-                iny
-                jmp :-
-:               rts
-
