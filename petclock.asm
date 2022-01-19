@@ -491,9 +491,10 @@ LoadJiffyClock:
                 
                 rol zptmp               ; Don't forget to shift the last bit into the result
                 
-                jsr SplitZptmpDigits    ; Split the digits of the calculated hour value and
-                sta ClkHourTens         ;   store them in the appropriate fields.
-                stx ClkHourDigits
+                ldx zptmp
+                jsr GetDigitChars       ; Split the digits of the calculated hour value and
+                stx ClkHourTens         ;   store them in the appropriate fields.
+                sty ClkHourDigits
 
                 lda remainder           ; Bump the low byte of the remainder in the result
                 sta zptmp               ;   variable.
@@ -531,9 +532,10 @@ LoadJiffyClock:
                 
                 rol zptmp               ; Don't forget to shift the last bit into the result
 	
-                jsr SplitZptmpDigits    ; Split and store the digits of the calculated
-                sta ClkMinTens          ;   minute value.
-                stx ClkMinDigits
+                ldx zptmp
+                jsr GetDigitChars       ; Split and store the digits of the calculated
+                stx ClkMinTens          ;   minute value.
+                sty ClkMinDigits
 
                 lda remainder+1         ; Put the low byte of the remainder in the result 
                 sta zptmp               ;   variable.
@@ -563,40 +565,43 @@ LoadJiffyClock:
                 
                 rol zptmp
 	
-                jsr SplitZptmpDigits    ; Split and store the digits of the calculated  
-                sta ClkSecTens          ;   second value.
-                stx ClkSecDigits
+                ldx zptmp
+                jsr GetDigitChars       ; Split and store the digits of the calculated  
+                stx ClkSecTens          ;   second value.
+                sty ClkSecDigits
 
                 rts
 
 
 ;-----------------------------------------------------------------------------------
-; Split the tens and digits of the value in zptmp
+; Calculate the tens and digits characters of the value in X
 ;-----------------------------------------------------------------------------------
-;       OUT A:  tens character
-;       OUT X:  digit character
+;       IN  X:  value to split and convert 
+;       OUT X:  tens character
+;       OUT Y:  digit character
 ;-----------------------------------------------------------------------------------
 
-SplitZptmpDigits:
-                lda zptmp
-                ldy #0
+GetDigitChars:
+                txa
+                ldx #0
                 
                 sec
 	
 @tensloop:
                 sbc #10                 ; Subtract 10 until we dive below zero. Every
-                bcc @belowzero          ;   time we stay above zero, we increase Y.
+                bcc @belowzero          ;   time we stay above zero, we increase X.
                 
-                iny
+                inx
                 bcs @tensloop
 	
 @belowzero:
-                adc #'0'+10             ; Calculate digit character and put it in X
-                tax
+                adc #'0'+10             ; Calculate digit character and put it in Y
+                tay
                 
-                tya                     ; Pull tens out of Y and calculate tens character
+                txa                     ; Pull tens out of X and calculate tens character
                 clc
                 adc #'0'
+                tax
                 
                 rts
 
