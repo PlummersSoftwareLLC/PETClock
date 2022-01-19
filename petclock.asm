@@ -642,7 +642,7 @@ UpdateJiffyClock:
 
 @addhours:      clc
 @hhloop:        lda #$c0                ; Perform a three-byte add. We're adding the number
-                adc remainder           ;   of jiffier per hour, which is 216,000 or 34b0c
+                adc remainder           ;   of jiffies per hour, which is 216,000 or 34bc0
                 sta remainder           ;   in hex.
                 lda #$4b
                 adc remainder+1
