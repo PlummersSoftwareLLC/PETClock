@@ -1047,7 +1047,7 @@ DrawClockXY:	stx ClockX
                 cmp PmFlag
                 bne @showcolon
                 lda #'.'            ; "Show AM" is on in the AM, so a dot is what we draw
-                jmp @firstdigit
+                jmp @drawchar
 @showcolon:     lda #':'
 @drawchar:      jsr DrawBigChar
 
