@@ -312,7 +312,7 @@ ConvertPetSCII:	sta temp
 
 
 ;-----------------------------------------------------------------------------------
-; ToggleShowAM - Print the help banner on the bottom three rows
+; ToggleShowAM - Toggle the showing of dot instead of colon in AM
 ;
 ; Sets the carry flag if the clock should be redrawn after it returns (AM)
 ;-----------------------------------------------------------------------------------
