@@ -1032,7 +1032,7 @@ DrawClockXY:	stx ClockX
                 sta ClockX
                 lda HourTens
                     
-@notZeroHour:	clc					; Colon	- We draw it first so other characters can overlap it
+@notZeroHour:	clc					; Colon	or dot - We draw it first so other characters can overlap it
                 lda #15
                 adc ClockX
                 tax
@@ -1042,14 +1042,14 @@ DrawClockXY:	stx ClockX
                 tay
 
                 lda #0
-                cmp ShowAM
+                cmp ShowAM          ; Show colon if "show AM" setting is off, or it's PM
                 beq @showcolon
                 cmp PmFlag
                 bne @showcolon
-                lda #'.'
+                lda #'.'            ; "Show AM" is on in the AM, so a dot is what we draw
                 jmp @firstdigit
 @showcolon:     lda #':'
-@firstdigit:    jsr DrawBigChar
+@drawchar:      jsr DrawBigChar
 
                 clc					; First digit of minutes
                 lda #21
