@@ -3,6 +3,7 @@
 ;-----------------------------------------------------------------------------------
 ; (c) Dave Plummer, 12/26/2016. If you can read it, you can use it! No warranties!
 ;                   12/26/2021. Ported to the cc65 assembler package (davepl)
+;                   01/19/2022. Run clock based on jiffy/RTC time (rbergen)
 ;-----------------------------------------------------------------------------------
 ; Environment: xpet -fs9 d:\OneDrive\PET\source\ -device9 1
 ;            : PET 2001
@@ -24,6 +25,7 @@ PET             = 1
 DEBUG           = 1					; Enable code that only is included for debug builds
 EPROM           = 0					; When TRUE, no BASIC stub, no load address in file
 PETSDPLUS       = 0                 ; When TRUE, read RTC from petSD+
+SHOWAMDEFAULT   = 1                 ; Use a dot separator for AM and colon for PM
 
 DEVICE_NUM      = 9
 MINUTE_JIFFIES  = 3600              ; Number of jiffies in a minute
@@ -71,6 +73,7 @@ ScratchStart:
    resultHi:		 .res  1
    remainder:        .res  3            ; Remainder for jiffy load division
    PmFlag:           .res  1            ; Keep track of AM/PM. AM=0, PM=1
+   ShowAM:           .res  1            ; Indicate AM with dot instead of colon
 ScratchEnd:		 
 
 ; This is where we store the time
@@ -201,7 +204,17 @@ notEscape:
                 jsr ZeroSeconds
                 jmp MainLoop
 
-@notMinDn:		jsr ShowInstructions	; Any other key shows the help text
+@notMinDn:		cmp #$53
+                bne @notShowAM
+                jsr ToggleShowAM		; S pressed, toggle show AM flag
+                bcs MainLoop
+                jmp InnerLoop
+
+@notShowAM:     cmp #$55
+                bne @notUpdate
+                jmp MainLoop            ; U pressed, update clock now
+
+@notUpdate:     jsr ShowInstructions	; Any other key shows the help text
                 jmp InnerLoop			;  which gets erased after a few seconds
 
 ExitApp:		
@@ -238,6 +251,9 @@ InitVariables:	ldx #ScratchEnd-ScratchStart
                 dex
                 cpx #$ff
                 bne :-
+
+                lda #SHOWAMDEFAULT          ; Set ShowAM setting to default
+                sta ShowAM
 
                 rts
                 
@@ -294,24 +310,74 @@ ConvertPetSCII:	sta temp
 :				lda temp
                 rts
 
+
+;-----------------------------------------------------------------------------------
+; ToggleShowAM - Toggle the showing of dot instead of colon in AM
+;
+; Sets the carry flag if the clock should be redrawn after it returns (AM)
+;-----------------------------------------------------------------------------------
+ 
+ToggleShowAM:
+                lda ShowAM              ; load show AM flag, flip bit, save
+                eor #1
+                sta ShowAM
+
+                ldx #0                  ; Only show banner message if it's PM...
+                cpx PmFlag
+                bne @prepmsg
+
+                sec                     ; ...otherwise just update clock
+                rts
+
+@prepmsg:       cmp #0                  ; Decide what message to print
+                bne @showamon
+                ldx #<AMOffMessage
+                ldy #>AMOffMessage
+                jmp @showmsg
+
+@showamon:      ldx #<AMOnMessage
+                ldy #>AMOnMessage
+@showmsg:       jsr ShowBanner
+
+                clc                     ; Tell caller we output message
+                rts
+
+
 ;-----------------------------------------------------------------------------------
 ; ShowInstructions - Print the help banner on the bottom three rows
 ;-----------------------------------------------------------------------------------
  
 ShowInstructions:
+                ldx #<Instructions
+                ldy #>Instructions
+
+                jmp ShowBanner
+
+
+;-----------------------------------------------------------------------------------
+; ShowBanner - Print zero-terminated text to the banner at the bottom of the screen
+;-----------------------------------------------------------------------------------
+;          X:  lsb of start of banner message
+;          Y:  msb of start of banner message
+;-----------------------------------------------------------------------------------
+
+ShowBanner:
+                stx zptmp
+                sty zptmp+1
+                
                 lda #$00						; Reset timer counter so banner will stay up a few seconds
                 sta ClockCount
                 sta ClockCount+1
 
                 lda #<(SCREEN_MEM + 22 * 40)	; Place instructions at line 22-25 of the screen
-                sta zptmp
+                sta zptmpB
                 lda #>(SCREEN_MEM + 22 * 40)
-                sta zptmp+1
+                sta zptmpB+1
                 ldy #0
-@loop:			lda Instructions,y
+@loop:			lda (zptmp),y
                 beq @done
                 jsr ConvertPetSCII				; Our text is in ASCII, convert to PET screen codes
-@output:		sta (zptmp),y
+@output:		sta (zptmpB),y
                 iny
                 bne @loop
 @done:			rts
@@ -966,7 +1032,7 @@ DrawClockXY:	stx ClockX
                 sta ClockX
                 lda HourTens
                     
-@notZeroHour:	clc					; Colon	- We draw it first so other characters can overlap it
+@notZeroHour:	clc					; Colon	or dot - We draw it first so other characters can overlap it
                 lda #15
                 adc ClockX
                 tax
@@ -974,8 +1040,16 @@ DrawClockXY:	stx ClockX
                 clc
                 adc ClockY
                 tay
-                lda #':'
-                jsr DrawBigChar
+
+                lda #0
+                cmp ShowAM          ; Show colon if "show AM" setting is off, or it's PM
+                beq @showcolon
+                cmp PmFlag
+                bne @showcolon
+                lda #'.'            ; "Show AM" is on in the AM, so a dot is what we draw
+                jmp @drawchar
+@showcolon:     lda #':'
+@drawchar:      jsr DrawBigChar
 
                 clc					; First digit of minutes
                 lda #21
@@ -1220,6 +1294,8 @@ FoundChar:		iny
 CharTable:
                 .literal ":"
                 .word  CharColon
+                .literal "."
+                .word  CharLowDot
                 .literal "0"
                 .word  Char0
                 .literal "1"
@@ -1332,10 +1408,28 @@ CharColon:
                 .byte	%00011000
                 .byte	%00011000
                 .byte	%00000000
+CharLowDot:
+                .byte	%00000000
+                .byte	%00000000
+                .byte	%00000000
+                .byte	%00000000
+                .byte	%00011000
+                .byte	%00011000
+                .byte	%00000000
 
 Instructions:
                 .literal "                                        "
                 .literal "                                        "
-                .literal "         press runstop to exit", $00
+                .literal "         press runstop to exit         ", $00
+
+AMOnMessage:
+                .literal "                                        "
+                .literal "                                        "
+                .literal "            am: show dot               ", $00
+
+AMOffMessage:
+                .literal "                                        "
+                .literal "                                        "
+                .literal "            am: show colon             ", $00
 
 dirname:        .literal "$",0
