@@ -26,6 +26,9 @@ DEBUG           = 1					; Enable code that only is included for debug builds
 EPROM           = 0					; When TRUE, no BASIC stub, no load address in file
 PETSDPLUS       = 0                 ; When TRUE, read RTC from petSD+
 SHOWAMDEFAULT   = 1                 ; Use a dot separator for AM and colon for PM
+COLUMNS         = 40                ; Screen width, either 40 or 80
+
+; Defines below this line should generally not require changing
 
 DEVICE_NUM      = 9
 MINUTE_JIFFIES  = 3600              ; Number of jiffies in a minute
@@ -369,9 +372,9 @@ ShowBanner:
                 sta ClockCount
                 sta ClockCount+1
 
-                lda #<(SCREEN_MEM + 22 * 40)	; Place instructions at line 22-25 of the screen
+                lda #<(SCREEN_MEM + 22 * COLUMNS)	; Place instructions at line 22-25 of the screen
                 sta zptmpB
-                lda #>(SCREEN_MEM + 22 * 40)
+                lda #>(SCREEN_MEM + 22 * COLUMNS)
                 sta zptmpB+1
                 ldy #0
 @loop:			lda (zptmp),y
@@ -1126,19 +1129,27 @@ DrawBigChar:	pha						; Save the A for later, it's the character
                 lda #%10000000			; Bitmask that walks right (10000000, 01000000, etc)
                 sta bitmask
 
-@bitloop:		lda (zptmpB,x)			; x must be zero, we want indirect trhough zptmpB
+@bitloop:		lda (zptmpB,x)			; x must be zero, we want indirect through zptmpB
                 and bitmask				; If this bit is set in the character data, draw a block
                 beq @prtblank			; If not set, skip and draw nothing
                 lda #160
                 sta (zptmp), y
+.if COLUMNS=80
+                iny                     ; We have 80 columns, so draw 2 blocks instead of one
+                sta (zptmp), y          
+.endif
                 bne @doneprt
             
-@prtblank:		lda #' '
+@prtblank:		lda #' '                ; We have 80 columns, so draw 2 blanks instead of one
                 sta (zptmp), y
+.if COLUMNS=80
+                iny
+                sta (zptmp), y
+.endif
 
 @doneprt:		lsr bitmask
                 iny
-                cpy #8					; 8 bits of work to do, so 8 steps
+                cpy #COLUMNS/5			; 8 bits to do, amounting to 8 or 16 characters
                 bne @bitloop
                 
                 inc zptmpB
@@ -1146,7 +1157,7 @@ DrawBigChar:	pha						; Save the A for later, it's the character
                 inc zptmpB+1
 @nocarry:		clc						; Advance the draw point to the next screen line
                 lda zptmp
-                adc #40
+                adc #COLUMNS
                 sta zptmp
                 lda zptmp+1
                 adc #0
@@ -1157,7 +1168,7 @@ DrawBigChar:	pha						; Save the A for later, it's the character
                 rts
 
 ;-----------------------------------------------------------------------------------
-; GetCursorAddr - Returns address of X/Y positionon screen
+; GetCursorAddr - Returns address of X/Y position on screen
 ;-----------------------------------------------------------------------------------
 ;		IN  X:	X pos
 ;       IN  Y:  Y pos
@@ -1166,8 +1177,11 @@ DrawBigChar:	pha						; Save the A for later, it's the character
 ;-----------------------------------------------------------------------------------
 
 GetCursorAddr:  stx temp
-                ldx #40
-                jsr Multiply			; Result of Y*40 in AY
+.if COLUMNS=80
+                asl temp                ; We have 80 columns, so double X
+.endif
+                ldx #COLUMNS
+                jsr Multiply			; Result of Y*COLUMNS in AY
                 sta resultLo
                 sty resultHi
                 lda resultLo
@@ -1417,10 +1431,26 @@ CharLowDot:
                 .byte	%00011000
                 .byte	%00000000
 
+.if COLUMNS=80
+Instructions:
+                .literal "                                                                                "
+                .literal "                                                                                "
+                .literal "                             Press RUN/STOP to exit                            ", $00
+
+AMOnMessage:
+                .literal "                                                                                "
+                .literal "                                                                                "
+                .literal "                                  AM: show dot                                 ", $00
+
+AMOffMessage:
+                .literal "                                                                                "
+                .literal "                                                                                "
+                .literal "                                  AM: show colon                               ", $00
+.else
 Instructions:
                 .literal "                                        "
                 .literal "                                        "
-                .literal "         press runstop to exit         ", $00
+                .literal "        press run/stop to exit         ", $00
 
 AMOnMessage:
                 .literal "                                        "
@@ -1431,5 +1461,6 @@ AMOffMessage:
                 .literal "                                        "
                 .literal "                                        "
                 .literal "            am: show colon             ", $00
+.endif
 
 dirname:        .literal "$",0
