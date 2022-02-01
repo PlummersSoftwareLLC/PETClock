@@ -4,7 +4,17 @@ Source code to [Dave's Garage](https://www.youtube.com/c/DavesGarage/featured) v
 
 [![Assembly Language Snow Day! Learn ASM Now! | Dave's Garage](https://img.youtube.com/vi/CfbciNZvg0o/0.jpg)](https://youtu.be/CfbciNZvg0o)
 
-## Building
+## Configuring and building
+
+Towards the top of the [`petclock.asm`](petclock.asm) file, a number of symbols are defined that can be used to configure the build:
+|Name|Possible values|Meaning|
+|-|-|-|
+|COLUMNS|40 or 80|Screen width of the target machine, in columns.|
+|DEBUG|0 or 1|Set to 1 to enable code that only is included for debug builds.|
+|EPROM|0 or 1|When set to 1, the BASIC stub and load address will not be included in the build output.|
+|PET|1|Configure build for the PET. Always set to 1.|
+|PETSDPLUS|0 or 1|When set to 1, the clock will read RTC from petSD+ instead of the jiffy timer.|
+|SHOWAMDEFAULT|0 or 1|Set to 1 to use a dot separator for AM and colon for PM. Otherwise, the separator is a colon at all times.|
 
 This repository's code targets the ca65 assembler and cl65 linker that are part of the [cc65](https://cc65.github.io/) GitHub project. You will need a fairly recent build of cc65 for assembly of this repository's contents to work.
 
