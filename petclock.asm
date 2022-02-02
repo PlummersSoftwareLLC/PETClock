@@ -1140,10 +1140,10 @@ DrawBigChar:	pha						; Save the A for later, it's the character
 .endif
                 bne @doneprt
             
-@prtblank:		lda #' '                ; We have 80 columns, so draw 2 blanks instead of one
+@prtblank:		lda #' '
                 sta (zptmp), y
 .if COLUMNS=80
-                iny
+                iny                     ; We have 80 columns, so draw 2 blanks instead of one
                 sta (zptmp), y
 .endif
 
