@@ -531,7 +531,7 @@ LoadJiffyClock:
                 bne @hhrol
                 
                 ldx #5                  ; We will perform a 5 step long division
-	
+
 @hhdiv:         rol zptmp               ; Rotate result and remainder left
                 rol remainder
                 rol remainder+1
@@ -554,7 +554,7 @@ LoadJiffyClock:
                 sta remainder+1
                 tya
                 sta remainder
-	
+
 @hhignore:      dex                     ; Continue if we have more division steps to take
                 bne @hhdiv
                 
@@ -578,7 +578,7 @@ LoadJiffyClock:
                 rol remainder+2
                 
                 ldx #6                  ; Perform a 6 step long division
-	
+
 @mmdiv:         rol zptmp               ; Rotate result and remainder left
                 rol remainder+1
                 rol remainder+2
@@ -595,12 +595,12 @@ LoadJiffyClock:
                 sta remainder+2         ; Subtract was possible, so save the remaining
                 tya                     ;   value of the remainder in memory.
                 sta remainder+1
-	
+
 @mmignore:	    dex                     ; Continue if we have more division steps to take
                 bne @mmdiv
                 
                 rol zptmp               ; Don't forget to shift the last bit into the result
-	
+
                 ldx zptmp
                 jsr GetDigitChars       ; Split and store the digits of the calculated
                 stx ClkMinTens          ;   minute value.
@@ -617,7 +617,7 @@ LoadJiffyClock:
                 rol remainder+2
 
                 ldx #6                  ; 6 step long division, like before.
-	
+
 @secdiv:        rol zptmp               ; The below is a pretty straightforward long  
                 rol remainder+2         ;   division of a two-byte value by 60.
                 
@@ -628,12 +628,12 @@ LoadJiffyClock:
                 bcc @secignore
                 
                 sta remainder+2
-	
+
 @secignore:	    dex
                 bne @secdiv
                 
                 rol zptmp
-	
+
                 ldx zptmp
                 jsr GetDigitChars       ; Split and store the digits of the calculated  
                 stx ClkSecTens          ;   second value.
@@ -655,13 +655,13 @@ GetDigitChars:
                 ldx #0
                 
                 sec
-	
+
 @tensloop:      sbc #10                 ; Subtract 10 until we dive below zero. Every
                 bcc @belowzero          ;   time we stay above zero, we increase X.
                 
                 inx
                 bcs @tensloop
-	
+
 @belowzero:     adc #'0'+10             ; Calculate digit character and put it in Y
                 tay
                 
@@ -842,22 +842,22 @@ CommandText:     .literal "T-RI",0      ; Command to read RTC in the petSD+
 SendCommand:    stx zptmpC
                 sty zptmpC+1
 
-	            lda #DEVICE_NUM         ; Device 8 or 9, etc
-	            sta DN
-	            lda #$6f			    ; DATA SA 15 (Must have $#60 or'd in)
-	            sta SA
-	            jsr LISTN   		    ; LISTEN
-	            lda SA
-	            jsr SECND       		; send secondary address
+                lda #DEVICE_NUM         ; Device 8 or 9, etc
+                sta DN
+                lda #$6f			    ; DATA SA 15 (Must have $#60 or'd in)
+                sta SA
+                jsr LISTN   		    ; LISTEN
+                lda SA
+                jsr SECND       		; send secondary address
                 ldy #0
 :               lda (zptmpC), y
                 beq @done
-	            jsr CIOUT           	; send char to IEEE
+                jsr CIOUT           	; send char to IEEE
                 iny
                 bne :-
 
 @done:
-            	jsr UNLSN               ; Unlisten
+                jsr UNLSN               ; Unlisten
                 rts
 
 ;----------------------------------------------------------------------------
@@ -872,26 +872,26 @@ SendCommand:    stx zptmpC
 ;----------------------------------------------------------------------------
 
 GetDeviceStatus:
-	            lda #DEVICE_NUM
-	            sta DN
-	            jsr TALK    			; TALK
-	            lda #$6f			    ; DATA SA 15
-	            sta SA
-	            jsr SECND               ; send secondary address
+                lda #DEVICE_NUM
+                sta DN
+                jsr TALK    			; TALK
+                lda #$6f			    ; DATA SA 15
+                sta SA
+                jsr SECND               ; send secondary address
                 ldy #$00
 :                
                 phy
-	            jsr ACPTR       	    ; read byte from IEEE bus
+                jsr ACPTR       	    ; read byte from IEEE bus
                 ply
-	            cmp #CR				    ; last byte = CR?
-	            beq @done
-	            sta DevResponse, y
+                cmp #CR				    ; last byte = CR?
+                beq @done
+                sta DevResponse, y
                 iny
-	            jmp :-		            ; branch always
+                jmp :-		            ; branch always
 @done:          lda #$00
                 sta DevResponse, y      ; null terminate the buffer instead of CR
-	            jsr UNTLK   		    ; UNTALK
-	            rts
+                jsr UNTLK   		    ; UNTALK
+                rts
 
 ;-----------------------------------------------------------------------------------
 ; Increment/Decrement Hour/Minute
