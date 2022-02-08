@@ -20,17 +20,10 @@
 
 .SETCPU "65C02"
 
+.INCLUDE "settings.inc"
+
 ; Definitions -----------------------------------------------------------------------
 PET             = 1
-DEBUG           = 1					; Enable code that only is included for debug builds
-EPROM           = 0					; When TRUE, no BASIC stub, no load address in file
-PETSDPLUS       = 0                 ; When TRUE, read RTC from petSD+
-SHOWAMDEFAULT   = 1                 ; Use a dot separator for AM and colon for PM
-COLUMNS         = 40                ; Screen width, either 40 or 80
-
-; Defines below this line should generally not require changing
-
-DEVICE_NUM      = 9
 MINUTE_JIFFIES  = 3600              ; Number of jiffies in a minute
 SECOND_JIFFIES  = 60                ; Number of jiffies in a second
 
