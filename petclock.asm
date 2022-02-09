@@ -31,9 +31,9 @@ SECOND_JIFFIES  = 60                ; Number of jiffies in a second
 .INCLUDE "basic4.inc"
 
 .if EPROM
-    BASE		= $B000		; Open PET ROM space
+    BASE        = $B000     ; Open PET ROM space
 .else
-    BASE		= $0401		; PET Start of BASIC
+    BASE        = $0401     ; PET Start of BASIC
 .endif
 
 ; System Locations ------------------------------------------------------------------
@@ -47,7 +47,7 @@ zptmp  = $BD
 zptmpB = $00
 zptmpC = $1F
 
-.org 826							; Second cassette buffer on PET
+.org 826                            ; Second cassette buffer on PET
 .bss
 
 
@@ -57,16 +57,16 @@ zptmpC = $1F
 ScratchStart:
    ClockCount:       .res  2            ; 16 bit countup timer to move clock to avoid screen burn
    ClockXPos:        .res  1            ; Current cursor X pos of clock
-   ClockYPos:	     .res  1            ; Current cursor Y pos of clock
-   ClockX:		     .res  1            ; Temp X for clock draw code
-   ClockY:		     .res  1            ; Temp Y for clock draw code
-   temp:			 .res  1            ; General scratch variable
-   bitmask:		     .res  1            ; Bitmask to use to walk through character bitmap row
-   bitcount:		 .res  1            ; Count of which row we're on in bitmap character
-   tempchar:		 .res  1	        ; Scratch variable
-   MultiplyTemp:	 .res  1            ; Scratch variable for multiply code
-   resultLo:		 .res  1			; Results from multiply operations
-   resultHi:		 .res  1
+   ClockYPos:        .res  1            ; Current cursor Y pos of clock
+   ClockX:           .res  1            ; Temp X for clock draw code
+   ClockY:           .res  1            ; Temp Y for clock draw code
+   temp:             .res  1            ; General scratch variable
+   bitmask:          .res  1            ; Bitmask to use to walk through character bitmap row
+   bitcount:         .res  1            ; Count of which row we're on in bitmap character
+   tempchar:         .res  1            ; Scratch variable
+   MultiplyTemp:     .res  1            ; Scratch variable for multiply code
+   resultLo:         .res  1            ; Results from multiply operations
+   resultHi:         .res  1
    remainder:        .res  3            ; Remainder for jiffy load division
    PmFlag:           .res  1            ; Keep track of AM/PM. AM=0, PM=1
    ShowAM:           .res  1            ; Indicate AM with dot instead of colon
@@ -75,13 +75,13 @@ ScratchEnd:
 ; This is where we store the time
 
 ClockStart:
-   HourTens:		 .res  1            ; Various parts of the clock, in text like ASCII '0'
-   HourDigits:	     .res  1
-   MinTens:		     .res  1
-   MinDigits:	     .res  1
-   SecTens:		     .res  1
-   SecDigits:	     .res  1
-   Tenths:		     .res  1
+   HourTens:         .res  1            ; Various parts of the clock, in text like ASCII '0'
+   HourDigits:       .res  1
+   MinTens:          .res  1
+   MinDigits:        .res  1
+   SecTens:          .res  1
+   SecDigits:        .res  1
+   Tenths:           .res  1
 ClockEnd:
 
 ; This is the structure we read the petSD+ clock into for parsing
@@ -107,7 +107,7 @@ DeviceBufferStart:
 DeviceBufferEnd:
 
 .assert (DeviceBufferEnd - DeviceBufferStart) = 23, error   ; Verify length of struct matches fixed RTC format
-.assert * <= 1000, error					                ; Make sure we haven't run off the end of the buffer
+.assert * <= 1000, error                                    ; Make sure we haven't run off the end of the buffer
 
 ; Start of Binary -------------------------------------------------------------------
 
@@ -120,21 +120,21 @@ DeviceBufferEnd:
                 .org 0000
                 .word BASE
                 .org  BASE
-Line10:			.word Line20						; Next line number
-                .word 10							; Line Number 10
-                .byte TK_REM						; REM token
+Line10:         .word Line20                        ; Next line number
+                .word 10                            ; Line Number 10
+                .byte TK_REM                        ; REM token
                 .literal "ARKABLE CLOCK BY DAVEPL (C) 2017", 00
 
-Line20:			.word endOfBasic					; PTR to next line, which is 0000
-                .word 20							; Line Number 20
-                .byte TK_SYS						;   SYS token
+Line20:         .word endOfBasic                    ; PTR to next line, which is 0000
+                .word 20                            ; Line Number 20
+                .byte TK_SYS                        ;   SYS token
                 .literal " "
-                .literal .string(*+7)	    		; Entry is 7 bytes from here, which is
+                .literal .string(*+7)               ; Entry is 7 bytes from here, which is
                                                     ;  not how I'd like to do it but you cannot
                                                     ;  use a forward reference in STR$()
 
-                .byte 00							; Do not modify without understanding
-endOfBasic:		.word 00							;   the +7 expression above, as this is
+                .byte 00                            ; Do not modify without understanding
+endOfBasic:     .word 00                            ;   the +7 expression above, as this is
 .else                                               ;   exactly 7 bytes and must match it
     .org BASE
 .endif
@@ -143,7 +143,7 @@ endOfBasic:		.word 00							;   the +7 expression above, as this is
 ; Start of Code
 ;-----------------------------------------------------------------------------------
 
-start:			cld
+start:          cld
                 jsr InitVariables       ; Since we can be in ROM, zero stuff out
                 jsr LoadClock
 MainLoop:
@@ -152,16 +152,16 @@ MainLoop:
                 ldx ClockXPos
                 jsr DrawClockXY
 
-InnerLoop:		jsr UpdateClockPos      ; Carry will be clear when its time to check
+InnerLoop:      jsr UpdateClockPos      ; Carry will be clear when its time to check
                 bcs MainLoop            ;   keyboard and move clock
 
-                jsr GETIN				; Keyboard Handling - check for input
+                jsr GETIN               ; Keyboard Handling - check for input
                 cmp #0
                 beq InnerLoop
 
                 cmp #$03
                 bne notEscape
-                beq ExitApp				; Escape pressed, go to exit
+                beq ExitApp             ; Escape pressed, go to exit
 
 notEscape:
 
@@ -175,34 +175,34 @@ notEscape:
 .endif
                 cmp #$5A
                 bne @notZero
-                jsr ZeroSeconds		    ; Z pressed, set seconds to 0
+                jsr ZeroSeconds         ; Z pressed, set seconds to 0
                 jmp InnerLoop
 
 @notZero:       cmp #$48
                 bne @notHour
-                jsr IncrementHour		; H pressed, increment hour
+                jsr IncrementHour       ; H pressed, increment hour
                 jmp MainLoop
 
-@notHour:		cmp #$C8
+@notHour:       cmp #$C8
                 bne @notHourDn
-                jsr DecrementHour		; SHIFT-H pressed, decrement hour
+                jsr DecrementHour       ; SHIFT-H pressed, decrement hour
                 jmp MainLoop
 
-@notHourDn:		cmp #$4D
+@notHourDn:     cmp #$4D
                 bne @notMin
-                jsr IncrementMinute		; M pressed, increment minute
+                jsr IncrementMinute     ; M pressed, increment minute
                 jsr ZeroSeconds
                 jmp MainLoop
 
-@notMin:		cmp #$CD
+@notMin:        cmp #$CD
                 bne @notMinDn
-                jsr DecrementMinute		; SHIFT-M pressed, decrement minute
+                jsr DecrementMinute     ; SHIFT-M pressed, decrement minute
                 jsr ZeroSeconds
                 jmp MainLoop
 
-@notMinDn:		cmp #$53
+@notMinDn:      cmp #$53
                 bne @notShowAM
-                jsr ToggleShowAM		; S pressed, toggle show AM flag
+                jsr ToggleShowAM        ; S pressed, toggle show AM flag
                 bcs MainLoop
                 jmp InnerLoop
 
@@ -210,8 +210,8 @@ notEscape:
                 bne @notUpdate
                 jmp MainLoop            ; U pressed, update clock now
 
-@notUpdate:     jsr ShowInstructions	; Any other key shows the help text
-                jmp InnerLoop			;  which gets erased after a few seconds
+@notUpdate:     jsr ShowInstructions    ; Any other key shows the help text
+                jmp InnerLoop           ;  which gets erased after a few seconds
 
 ExitApp:
 .if !PETSDPLUS
@@ -221,7 +221,7 @@ ExitApp:
                 jsr ClearScreen
 
 .if DEBUG
-                ldy #>loadstr		    ; Output load text and exit
+                ldy #>loadstr           ; Output load text and exit
                 lda #<loadstr
                 jsr WriteLine
 .endif
@@ -234,16 +234,16 @@ ExitApp:
 ; it starts out in an unknown state, so we have code to zero it or set it to defaults
 ;-----------------------------------------------------------------------------------
 
-InitVariables:	ldx #ScratchEnd-ScratchStart
-                lda #$00				    ; Init variables to #0
-:				sta ScratchStart, x
+InitVariables:  ldx #ScratchEnd-ScratchStart
+                lda #$00                    ; Init variables to #0
+:               sta ScratchStart, x
                 dex
                 cpx #$ff
                 bne :-
 
-                ldx #ClockEnd-ClockStart	; Init all clock digits to '0'
+                ldx #ClockEnd-ClockStart    ; Init all clock digits to '0'
                 lda #'0'
-:				sta ClockStart, x
+:               sta ClockStart, x
                 dex
                 cpx #$ff
                 bne :-
@@ -262,14 +262,14 @@ InitVariables:	ldx #ScratchEnd-ScratchStart
 ;-----------------------------------------------------------------------------------
 
 UpdateClockPos:
-                inc ClockCount			; Increment the low byte of counter
+                inc ClockCount          ; Increment the low byte of counter
                 bne @nomove
-                inc ClockCount+1		; Increment the high byte
+                inc ClockCount+1        ; Increment the high byte
                 lda ClockCount+1
-                cmp #200				; If high byte hasn't reached 200, a suitable delay, nothing to do
+                cmp #200                ; If high byte hasn't reached 200, a suitable delay, nothing to do
                 bne @nomove
 
-                lda #$0					; Reset wait timer to zero
+                lda #$0                 ; Reset wait timer to zero
                 sta ClockCount
                 sta ClockCount+1
 
@@ -279,7 +279,7 @@ UpdateClockPos:
 
                 inc ClockYPos
                 lda ClockYPos
-                cmp #15					; Don't go lower than this to leave room for instructions
+                cmp #15                 ; Don't go lower than this to leave room for instructions
                 bne @donemove
                 lda #0
                 sta ClockYPos
@@ -287,7 +287,7 @@ UpdateClockPos:
                 sec
                 rts
 
-@nomove:		clc
+@nomove:        clc
                 rts
 
 ;-----------------------------------------------------------------------------------
@@ -295,7 +295,7 @@ UpdateClockPos:
 ;                  Apprently not a complete conversion but it works for my purposes
 ;-----------------------------------------------------------------------------------
 
-ConvertPetSCII:	sta temp
+ConvertPetSCII: sta temp
                 lda #%00100000
                 bit temp
                 bvc :+
@@ -303,7 +303,7 @@ ConvertPetSCII:	sta temp
                 lda temp
                 and #%10011111
                 rts
-:				lda temp
+:               lda temp
                 rts
 
 
@@ -361,22 +361,22 @@ ShowBanner:
                 stx zptmp
                 sty zptmp+1
 
-                lda #$00						; Reset timer counter so banner will stay up a few seconds
+                lda #$00                        ; Reset timer counter so banner will stay up a few seconds
                 sta ClockCount
                 sta ClockCount+1
 
-                lda #<(SCREEN_MEM + 22 * COLUMNS)	; Place instructions at line 22-25 of the screen
+                lda #<(SCREEN_MEM + 22 * COLUMNS)   ; Place instructions at line 22-25 of the screen
                 sta zptmpB
                 lda #>(SCREEN_MEM + 22 * COLUMNS)
                 sta zptmpB+1
                 ldy #0
-@loop:			lda (zptmp),y
+@loop:          lda (zptmp),y
                 beq @done
-                jsr ConvertPetSCII				; Our text is in ASCII, convert to PET screen codes
-@output:		sta (zptmpB),y
+                jsr ConvertPetSCII              ; Our text is in ASCII, convert to PET screen codes
+@output:        sta (zptmpB),y
                 iny
                 bne @loop
-@done:			rts
+@done:          rts
 
 
 ;-----------------------------------------------------------------------------------
@@ -596,7 +596,7 @@ LoadJiffyClock:
                 tya                     ;   value of the remainder in memory.
                 sta remainder+1
 
-@mmignore:	    dex                     ; Continue if we have more division steps to take
+@mmignore:      dex                     ; Continue if we have more division steps to take
                 bne @mmdiv
 
                 rol zptmp               ; Don't forget to shift the last bit into the result
@@ -629,7 +629,7 @@ LoadJiffyClock:
 
                 sta remainder+2
 
-@secignore:	    dex
+@secignore:     dex
                 bne @secdiv
 
                 rol zptmp
@@ -844,15 +844,15 @@ SendCommand:    stx zptmpC
 
                 lda #DEVICE_NUM         ; Device 8 or 9, etc
                 sta DN
-                lda #$6f			    ; DATA SA 15 (Must have $#60 or'd in)
+                lda #$6f                ; DATA SA 15 (Must have $#60 or'd in)
                 sta SA
-                jsr LISTN   		    ; LISTEN
+                jsr LISTN               ; LISTEN
                 lda SA
-                jsr SECND       		; send secondary address
+                jsr SECND               ; send secondary address
                 ldy #0
 :               lda (zptmpC), y
                 beq @done
-                jsr CIOUT           	; send char to IEEE
+                jsr CIOUT               ; send char to IEEE
                 iny
                 bne :-
 
@@ -874,23 +874,23 @@ SendCommand:    stx zptmpC
 GetDeviceStatus:
                 lda #DEVICE_NUM
                 sta DN
-                jsr TALK    			; TALK
-                lda #$6f			    ; DATA SA 15
+                jsr TALK                ; TALK
+                lda #$6f                ; DATA SA 15
                 sta SA
                 jsr SECND               ; send secondary address
                 ldy #$00
 :
                 phy
-                jsr ACPTR       	    ; read byte from IEEE bus
+                jsr ACPTR               ; read byte from IEEE bus
                 ply
-                cmp #CR				    ; last byte = CR?
+                cmp #CR                 ; last byte = CR?
                 beq @done
                 sta DevResponse, y
                 iny
-                jmp :-		            ; branch always
+                jmp :-                  ; branch always
 @done:          lda #$00
                 sta DevResponse, y      ; null terminate the buffer instead of CR
-                jsr UNTLK   		    ; UNTALK
+                jsr UNTLK               ; UNTALK
                 rts
 
 ;-----------------------------------------------------------------------------------
@@ -928,7 +928,7 @@ IncrementHour:
                 eor #1
                 sta PmFlag
 
-@noteleven:     inc HourDigits			; If the hour hit 9, must be 09, so set hour to 10
+@noteleven:     inc HourDigits          ; If the hour hit 9, must be 09, so set hour to 10
                 lda #'9'+1
                 cmp HourDigits
                 bne notNineHour
@@ -938,17 +938,17 @@ IncrementHour:
                 stx HourTens            ; X still holds 1
                 rts
 
-notNineHour:	lda #'2'+1				; If it's past not 2 (ie: possible 12 hour) then skip
+notNineHour:    lda #'2'+1              ; If it's past not 2 (ie: possible 12 hour) then skip
                 cmp HourDigits
-                bne doneHour			; Last digit was 2 but first digit not 1 so go to 3
+                bne doneHour            ; Last digit was 2 but first digit not 1 so go to 3
 
                 cpx HourTens            ; X still holds 1
                 bne doneHour
 
-                lda #'0'				; Roll from 12 to 01
+                lda #'0'                ; Roll from 12 to 01
                 sta HourTens
                 stx HourDigits          ; X still holds 1
-doneHour:		rts
+doneHour:       rts
 
 DecrementMinute:
                 dec MinDigits
@@ -967,7 +967,7 @@ DecrementMinute:
 
 DecrementHour:
                 dec HourDigits
-                lda #'0'-1			    ; If we've gone under zero, must have been 10 so go to 09
+                lda #'0'-1              ; If we've gone under zero, must have been 10 so go to 09
                 cmp HourDigits
                 bne notsubzero
                 lda #'9'
@@ -977,7 +977,7 @@ DecrementHour:
 
                 rts
 
-notsubzero:		lda #'1'-1			    ; If we're going under 1
+notsubzero:     lda #'1'-1              ; If we're going under 1
                 cmp HourDigits
                 bne @chkeleven
                 lda #'0'
@@ -1000,16 +1000,16 @@ notsubzero:		lda #'1'-1			    ; If we're going under 1
                 eor #1
                 sta PmFlag
 
-doneDec:		rts
+doneDec:        rts
 
 ;-----------------------------------------------------------------------------------
-; DrawClockXY	- Draws the current clock at the specified X/Y location on screen
+; DrawClockXY   - Draws the current clock at the specified X/Y location on screen
 ;-----------------------------------------------------------------------------------
-;			X:	Clock X position on screen
-;			Y:	Clock Y position on screen
+;           X:  Clock X position on screen
+;           Y:  Clock Y position on screen
 ;-----------------------------------------------------------------------------------
 
-DrawClockXY:	stx ClockX
+DrawClockXY:    stx ClockX
                 sty ClockY
                 jsr ClearScreen
 
@@ -1022,13 +1022,13 @@ DrawClockXY:	stx ClockX
                 lda HourTens
                 cmp #'0'
                 bne @notZeroHour
-                lda ClockX			; Go left 4 columns (half a big char) to center single-digit hour
+                lda ClockX          ; Go left 4 columns (half a big char) to center single-digit hour
                 sec
                 sbc #4
                 sta ClockX
                 lda HourTens
 
-@notZeroHour:	clc					; Colon	or dot - We draw it first so other characters can overlap it
+@notZeroHour:   clc                 ; Colon or dot - We draw it first so other characters can overlap it
                 lda #15
                 adc ClockX
                 tax
@@ -1047,7 +1047,7 @@ DrawClockXY:	stx ClockX
 @showcolon:     lda #':'
 @drawchar:      jsr DrawBigChar
 
-                clc					; First digit of minutes
+                clc                 ; First digit of minutes
                 lda #21
                 adc ClockX
                 tax
@@ -1058,7 +1058,7 @@ DrawClockXY:	stx ClockX
                 lda MinTens
                 jsr DrawBigChar
 
-                clc					; Second Hour Digit
+                clc                 ; Second Hour Digit
                 lda #8
                 adc ClockX
                 tax
@@ -1069,7 +1069,7 @@ DrawClockXY:	stx ClockX
                 lda HourDigits
                 jsr DrawBigChar
 
-                clc					; First Hour Digit
+                clc                 ; First Hour Digit
                 lda #0
                 adc ClockX
                 tax
@@ -1082,7 +1082,7 @@ DrawClockXY:	stx ClockX
                 beq @skipHourTens
                 jsr DrawBigChar
 @skipHourTens:
-                clc					; 2nd digit of minutes
+                clc                 ; 2nd digit of minutes
                 lda #29
                 adc ClockX
                 tax
@@ -1098,33 +1098,33 @@ DrawClockXY:	stx ClockX
 ;-----------------------------------------------------------------------------------
 ; DrawBigChar - Draws a given big character at the given X/Y positon
 ;-----------------------------------------------------------------------------------
-;			A:	Character to print
-;			X:  X pos on screen
-;			Y:  Y pos on screen
+;           A:  Character to print
+;           X:  X pos on screen
+;           Y:  Y pos on screen
 ;-----------------------------------------------------------------------------------
 
-DrawBigChar:	pha						; Save the A for later, it's the character
-                jsr GetCursorAddr		; Get the screen location based on the X/Y coord
+DrawBigChar:    pha                     ; Save the A for later, it's the character
+                jsr GetCursorAddr       ; Get the screen location based on the X/Y coord
                 stx zptmp
                 sty zptmp+1
                 pla
 
-                jsr GetCharTbl			; Find out the character block memory address
-                stx zptmpB				;   for the character in A
+                jsr GetCharTbl          ; Find out the character block memory address
+                stx zptmpB              ;   for the character in A
                 sty zptmpB+1
 
-                lda #7					; Now do all 7 rows of the character definition
+                lda #7                  ; Now do all 7 rows of the character definition
                 sta bitcount
 
                 ldx #0
-@byteloop:		ldy #0
+@byteloop:      ldy #0
 
-                lda #%10000000			; Bitmask that walks right (10000000, 01000000, etc)
+                lda #%10000000          ; Bitmask that walks right (10000000, 01000000, etc)
                 sta bitmask
 
-@bitloop:		lda (zptmpB,x)			; x must be zero, we want indirect through zptmpB
-                and bitmask				; If this bit is set in the character data, draw a block
-                beq @prtblank			; If not set, skip and draw nothing
+@bitloop:       lda (zptmpB,x)          ; x must be zero, we want indirect through zptmpB
+                and bitmask             ; If this bit is set in the character data, draw a block
+                beq @prtblank           ; If not set, skip and draw nothing
                 lda #160
                 sta (zptmp), y
 .if COLUMNS=80
@@ -1133,22 +1133,22 @@ DrawBigChar:	pha						; Save the A for later, it's the character
 .endif
                 bne @doneprt
 
-@prtblank:		lda #' '
+@prtblank:      lda #' '
                 sta (zptmp), y
 .if COLUMNS=80
                 iny                     ; We have 80 columns, so draw 2 blanks instead of one
                 sta (zptmp), y
 .endif
 
-@doneprt:		lsr bitmask
+@doneprt:       lsr bitmask
                 iny
-                cpy #COLUMNS/5			; 8 bits to do, amounting to 8 or 16 characters
+                cpy #COLUMNS/5          ; 8 bits to do, amounting to 8 or 16 characters
                 bne @bitloop
 
                 inc zptmpB
                 bne @nocarry
                 inc zptmpB+1
-@nocarry:		clc						; Advance the draw point to the next screen line
+@nocarry:       clc                     ; Advance the draw point to the next screen line
                 lda zptmp
                 adc #COLUMNS
                 sta zptmp
@@ -1156,14 +1156,14 @@ DrawBigChar:	pha						; Save the A for later, it's the character
                 adc #0
                 sta zptmp+1
 
-                dec bitcount			; Next character definition row, until all done
+                dec bitcount            ; Next character definition row, until all done
                 bne @byteloop
                 rts
 
 ;-----------------------------------------------------------------------------------
 ; GetCursorAddr - Returns address of X/Y position on screen
 ;-----------------------------------------------------------------------------------
-;		IN  X:	X pos
+;       IN  X:  X pos
 ;       IN  Y:  Y pos
 ;       OUT X:  lsb of address
 ;       OUT Y:  msb of address
@@ -1174,7 +1174,7 @@ GetCursorAddr:  stx temp
                 asl temp                ; We have 80 columns, so double X
 .endif
                 ldx #COLUMNS
-                jsr Multiply			; Result of Y*COLUMNS in AY
+                jsr Multiply            ; Result of Y*COLUMNS in AY
                 sta resultLo
                 sty resultHi
                 lda resultLo
@@ -1183,7 +1183,7 @@ GetCursorAddr:  stx temp
                 bcc nocarry
                 inc resultHi
                 clc
-nocarry:		adc temp
+nocarry:        adc temp
                 sta resultLo
                 lda resultHi
                 adc #>SCREEN_MEM
@@ -1193,10 +1193,10 @@ nocarry:		adc temp
                 rts
 
 ;-----------------------------------------------------------------------------------
-; Multiply		Multiplies X * Y == ResultLo/ResultHi
+; Multiply      Multiplies X * Y == ResultLo/ResultHi
 ;-----------------------------------------------------------------------------------
-;				X		8 bit value in
-;				Y		8 bit value in
+;               X       8 bit value in
+;               Y       8 bit value in
 ;-----------------------------------------------------------------------------------
 
 Multiply:
@@ -1206,16 +1206,16 @@ Multiply:
                 tay
                 sty resultHi
                 beq enterLoop
-doAdd:			clc
+doAdd:          clc
                 adc resultLo
                 tax
                 tya
                 adc resultHi
                 tay
                 txa
-loop:			asl resultLo
-                rol	resultHi
-enterLoop:		lsr MultiplyTemp
+loop:           asl resultLo
+                rol resultHi
+enterLoop:      lsr MultiplyTemp
                 bcs doAdd
                 bne loop
                 rts
@@ -1223,37 +1223,37 @@ enterLoop:		lsr MultiplyTemp
 ;-----------------------------------------------------------------------------------
 ; ClearScreen
 ;-----------------------------------------------------------------------------------
-;			X:	lsb of address of null-terminated string
+;           X:  lsb of address of null-terminated string
 ;           A:  msb of address
 ;-----------------------------------------------------------------------------------
 
-ClearScreen:	jmp CLRSCR
+ClearScreen:    jmp CLRSCR
 
 ;-----------------------------------------------------------------------------------
 ; WriteLine - Writes a line of text to the screen using CHROUT ($FFD2)
 ;-----------------------------------------------------------------------------------
-;			Y:	MSB of address of null-terminated string
+;           Y:  MSB of address of null-terminated string
 ;           A:  LSB
 ;-----------------------------------------------------------------------------------
 
-WriteLine:		sta zptmp
+WriteLine:      sta zptmp
                 sty zptmp+1
                 ldy #0
-@loop:			lda (zptmp),y
+@loop:          lda (zptmp),y
                 beq done
                 jsr CHROUT
                 iny
                 bne @loop
-done: 			rts
+done:           rts
 
 ;-----------------------------------------------------------------------------------
 ; RepeatChar - Writes a character A to the output X times
 ;-----------------------------------------------------------------------------------
-;			A:	Character to write
+;           A:  Character to write
 ;           X:  Number of times to repeat it
 ;-----------------------------------------------------------------------------------
 
-RepeatChar:		jsr CHROUT
+RepeatChar:     jsr CHROUT
                 dex
                 bne RepeatChar
                 rts
@@ -1261,8 +1261,8 @@ RepeatChar:		jsr CHROUT
 ; During development we output the LOAD statement after running to make the
 ; code-test-debug cycle go a little easier - less typing
 
-loadstr:		.literal "LOAD ", 34,"PETCLOCK.PRG",34,", 9",13,0
-hello:			.literal "STARTING PETCLOCK...", 0
+loadstr:        .literal "LOAD ", 34,"PETCLOCK.PRG",34,", 9",13,0
+hello:          .literal "STARTING PETCLOCK...", 0
 
 .endif
 
@@ -1270,32 +1270,32 @@ hello:			.literal "STARTING PETCLOCK...", 0
 ; GetCharTbl - Returns the address of the character block table for whatever petscii
 ;              character is specified in the accumualtor
 ;-----------------------------------------------------------------------------------
-;			A:	Character to look up
+;           A:  Character to look up
 ;       OUT X:  lsb of character map entry
 ;       OUT Y:  msb of character map entry
 ;-----------------------------------------------------------------------------------
 
 
-GetCharTbl:		sta tempchar
+GetCharTbl:     sta tempchar
                 ldx #<CharTable
                 stx zptmpC
                 ldx #>CharTable
                 stx zptmpC+1
                 ldy #0
-@scanloop:		lda (zptmpC),y
-                beq FoundChar				; Hit the null terminator, return the zeros after it
+@scanloop:      lda (zptmpC),y
+                beq FoundChar               ; Hit the null terminator, return the zeros after it
                 cmp tempchar
-                beq FoundChar				; Hit the matching char, return the block address
+                beq FoundChar               ; Hit the matching char, return the block address
                 iny
                 iny
                 iny
-                bne @scanloop				; Nothing found, keep scanning
+                bne @scanloop               ; Nothing found, keep scanning
 
-FoundChar:		iny
-                lda (zptmpC),y				; Low byte of character entry in X
+FoundChar:      iny
+                lda (zptmpC),y              ; Low byte of character entry in X
                 tax
                 iny
-                lda (zptmpC),y				; High byte of character entry in Y
+                lda (zptmpC),y              ; High byte of character entry in Y
                 tay
                 rts
 CharTable:
@@ -1336,93 +1336,93 @@ Char0:
                 .byte   %01100011
                 .byte   %01111111
 Char1:
-                .byte	%00001100
-                .byte	%00011100
-                .byte	%00001100
-                .byte	%00001100
-                .byte	%00001100
-                .byte	%00001100
-                .byte	%00111111
+                .byte   %00001100
+                .byte   %00011100
+                .byte   %00001100
+                .byte   %00001100
+                .byte   %00001100
+                .byte   %00001100
+                .byte   %00111111
 Char2:
-                .byte	%01111111
-                .byte	%00000011
-                .byte	%00000011
-                .byte	%01111111
-                .byte	%01100000
-                .byte	%01100000
-                .byte	%01111111
+                .byte   %01111111
+                .byte   %00000011
+                .byte   %00000011
+                .byte   %01111111
+                .byte   %01100000
+                .byte   %01100000
+                .byte   %01111111
 Char3:
-                .byte	%01111111
-                .byte	%00000011
-                .byte	%00000011
-                .byte	%00011111
-                .byte	%00000011
-                .byte	%00000011
-                .byte	%01111111
+                .byte   %01111111
+                .byte   %00000011
+                .byte   %00000011
+                .byte   %00011111
+                .byte   %00000011
+                .byte   %00000011
+                .byte   %01111111
 Char4:
-                .byte	%01100011
-                .byte	%01100011
                 .byte   %01100011
-                .byte	%01111111
-                .byte	%00000011
-                .byte	%00000011
-                .byte	%00000011
+                .byte   %01100011
+                .byte   %01100011
+                .byte   %01111111
+                .byte   %00000011
+                .byte   %00000011
+                .byte   %00000011
 Char5:
-                .byte	%01111111
-                .byte	%01100000
-                .byte	%01100000
-                .byte	%01111111
-                .byte	%00000011
-                .byte	%00000011
-                .byte	%01111111
+                .byte   %01111111
+                .byte   %01100000
+                .byte   %01100000
+                .byte   %01111111
+                .byte   %00000011
+                .byte   %00000011
+                .byte   %01111111
 Char6:
-                .byte	%01111111
-                .byte	%01100000
-                .byte	%01100000
-                .byte	%01111111
-                .byte	%01100011
-                .byte	%01100011
-                .byte	%01111111
+                .byte   %01111111
+                .byte   %01100000
+                .byte   %01100000
+                .byte   %01111111
+                .byte   %01100011
+                .byte   %01100011
+                .byte   %01111111
 Char7:
-                .byte	%01111111
-                .byte	%00000011
-                .byte	%00000011
-                .byte	%00000011
-                .byte	%00000011
-                .byte	%00000011
-                .byte	%00000011
+                .byte   %01111111
+                .byte   %00000011
+                .byte   %00000011
+                .byte   %00000011
+                .byte   %00000011
+                .byte   %00000011
+                .byte   %00000011
 Char8:
-                .byte	%01111111
-                .byte	%01100011
-                .byte	%01100011
-                .byte	%01111111
-                .byte	%01100011
-                .byte	%01100011
-                .byte	%01111111
+                .byte   %01111111
+                .byte   %01100011
+                .byte   %01100011
+                .byte   %01111111
+                .byte   %01100011
+                .byte   %01100011
+                .byte   %01111111
 Char9:
-                .byte	%01111111
-                .byte	%01100011
-                .byte	%01100011
-                .byte	%01111111
-                .byte	%00000011
-                .byte	%00000011
-                .byte	%00000011
+                .byte   %01111111
+                .byte   %01100011
+                .byte   %01100011
+                .byte   %01111111
+                .byte   %00000011
+                .byte   %00000011
+                .byte   %00000011
 CharColon:
-                .byte	%00000000
-                .byte	%00011000
-                .byte	%00011000
-                .byte	%00000000
-                .byte	%00011000
-                .byte	%00011000
-                .byte	%00000000
+                .byte   %00000000
+                .byte   %00011000
+                .byte   %00011000
+                .byte   %00000000
+                .byte   %00011000
+                .byte   %00011000
+                .byte   %00000000
 CharLowDot:
-                .byte	%00000000
-                .byte	%00000000
-                .byte	%00000000
-                .byte	%00000000
-                .byte	%00011000
-                .byte	%00011000
-                .byte	%00000000
+                .byte   %00000000
+                .byte   %00000000
+                .byte   %00000000
+                .byte   %00000000
+                .byte   %00011000
+                .byte   %00011000
+                .byte   %00000000
 
 .if COLUMNS=80
 Instructions:
