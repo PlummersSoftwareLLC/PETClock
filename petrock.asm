@@ -128,7 +128,7 @@ DeviceBufferEnd:
                 .word BASE
                 .org  BASE
 Line10:			.word Line20						; Next line number
-                .word 10							; Line Number 10		
+                .word 10							; Line Number 10	
                 .byte TK_REM						; REM token
                 .literal "ARKABLE CLOCK BY DAVEPL (C) 2017", 00
 
