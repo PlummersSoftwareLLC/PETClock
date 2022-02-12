@@ -17,12 +17,10 @@
 ; The hours can be specified in 24-hour format; they will be converted to 12-hour
 ; format, as is the time read from the petSD+.
 
-
-.SETCPU "65C02"
-
 .INCLUDE "settings.inc"
 
 ; Definitions -----------------------------------------------------------------------
+
 PET             = 1
 MINUTE_JIFFIES  = 3600              ; Number of jiffies in a minute
 SECOND_JIFFIES  = 60                ; Number of jiffies in a second
@@ -830,6 +828,7 @@ UpdateClock:
 
 @noupdate:      rts
 
+.if PETSDPLUS
 
 ;----------------------------------------------------------------------------
 ; SendCommand
@@ -879,19 +878,19 @@ GetDeviceStatus:
                 sta SA
                 jsr SECND               ; send secondary address
                 ldy #$00
-:
-                phy
-                jsr ACPTR               ; read byte from IEEE bus
-                ply
-                cmp #CR                 ; last byte = CR?
-                beq @done
-                sta DevResponse, y
+:                
+	            jsr ACPTR       	    ; read byte from IEEE bus
+	            cmp #CR				    ; last byte = CR?
+	            beq @done
+	            sta DevResponse, y
                 iny
                 jmp :-                  ; branch always
 @done:          lda #$00
                 sta DevResponse, y      ; null terminate the buffer instead of CR
                 jsr UNTLK               ; UNTALK
                 rts
+
+.endif
 
 ;-----------------------------------------------------------------------------------
 ; Increment/Decrement Hour/Minute
