@@ -4,6 +4,7 @@
 ; (c) Dave Plummer, 12/26/2016. If you can read it, you can use it! No warranties!
 ;                   12/26/2021. Ported to the cc65 assembler package (davepl)
 ;                   01/19/2022. Run clock based on jiffy/RTC time (rbergen)
+;                   02/13/2022. Add C64 support
 ;-----------------------------------------------------------------------------------
 ; Environment: xpet -fs9 d:\OneDrive\PET\source\ -device9 1
 ;            : PET 2001
@@ -64,13 +65,7 @@ SECOND_JIFFIES  = 60                ; Number of jiffies in a second
     .endif
 .endif
 
-JIFFY_TIMER = $008F
-
 ; Our Definitions -------------------------------------------------------------------
-
-zptmp  = $BD
-zptmpB = $00
-zptmpC = $1F
 
 .org SCRATCH_START
 .bss
@@ -298,7 +293,11 @@ UpdateClockPos:
                 sta ClockCount
                 sta ClockCount+1
 
+.if PET
                 lda JIFFY_TIMER
+.elseif C64
+                jsr RDTIM
+.endif
                 and #3
                 sta ClockXPos
 
@@ -428,15 +427,19 @@ SetSeconds:
 
 @calcjiffies:   ldy #SECOND_JIFFIES     ; Multiply seconds by jiffies per second
                 jsr Multiply            ;   and load results in registers
-                lda resultLo
                 ldx resultHi
+                lda resultLo
 
 writeJiffy:     ldy #0                  ; Highest byte is always 0
+.if PET                                
                 sei                     ; Write jiffy timer with interrupts disabled.
-                sta JIFFY_TIMER
+                sta JIFFY_TIMER-2
                 stx JIFFY_TIMER-1
-                sty JIFFY_TIMER-2
+                sty JIFFY_TIMER
                 cli
+.elseif C64
+                jsr SETTIM
+.endif
                 rts
 
 ;-----------------------------------------------------------------------------------
@@ -531,14 +534,21 @@ TwoInTens:      dec HourTens            ; If it's 2X:XX we go back 12 hours
 ;-----------------------------------------------------------------------------------
 
 LoadJiffyClock:
-                sei                     ; Load jiffy clock with interrupts disabled.
-                lda JIFFY_TIMER         ;   We put the low byte in the result variable
-                ldx JIFFY_TIMER-1       ;   zptmp, and the two high bytes in the two
-                ldy JIFFY_TIMER-2       ;   lowest bytes of the remainder. Together with
-                cli                     ;   the initial rotate left below, this sets us
-                sta zptmp               ;   up for the most efficient division to get the
-                stx remainder           ;   hour value out of the jiffy clock.
-                sty remainder+1
+.if PET
+                sei                     ; Load jiffy clock with interrupts disabled
+                lda JIFFY_TIMER
+                ldx JIFFY_TIMER-1
+                ldy JIFFY_TIMER-2
+                cli
+.elseif C64                             
+                jsr RDTIM               ; Load jiffy clock using kernal routine
+.endif
+                sta zptmp               ; We put the low byte in the result variable
+                stx remainder           ;   zptmp, and the two high bytes in the two
+                sty remainder+1         ;   lowest bytes of the remainder. Together with
+                                        ;   the initial rotate left below, this sets us
+                                        ;   up for the most efficient division to get the
+                                        ;   hour value out of the jiffy clock.
 
                 lda #0                  ; Clear remainder high byte
                 sta remainder+2
@@ -768,6 +778,7 @@ UpdateJiffyClock:
 
                 beq @done
 
+.if PET
                 lda remainder           ; Load hour and minute jiffies in registers, so
                 ldx remainder+1         ;   we can keep the interrupts disabled for the
                 ldy remainder+2         ;   shortest duration possible.
@@ -784,6 +795,23 @@ UpdateJiffyClock:
                 adc JIFFY_TIMER-2
                 sta JIFFY_TIMER-2
                 cli
+.elseif C64
+                jsr RDTIM               ; Read current time using kernal routine
+                
+                clc
+                
+                adc remainder           ; Add and store low byte of hours and minutes
+                pha
+                txa                     ; Get middle byte from X, add middle byte of 
+                adc remainder+1         ;   hours and minutes, and put the result
+                tax                     ;   back in X.
+                tya                     ; Get high byte from X, add middle byte of hours
+                adc remainder+2         ;   and minutes, and put the result back in Y.
+                tay
+                pla
+                
+                jsr SETTIM
+.endif
 
 @done:          rts
 
@@ -822,12 +850,15 @@ GetCharsValue:
 ;-----------------------------------------------------------------------------------
 UpdateClock:
                 ; The numbers between brackets are the machine cycles per instruction
+.if PET
                 sei                     ; Load jiffy timer values with interrupts   (2)
                 ldy JIFFY_TIMER-2       ;   disabled. Weirdly, the three bytes of   (3)
                 ldx JIFFY_TIMER-1       ;   that value are stored big-endian.       (3)
                 lda JIFFY_TIMER         ;                                           (3)
                 cli                     ;                                           (2)
-
+.elseif C64
+                jsr RDTIM
+.endif
                 sec                     ; Subtract the number of jiffies per minute (2)
                 sbc #<MINUTE_JIFFIES    ;   from the jiffy timer value, low byte    (2)
                 sta zptmp               ;   first. Store A in temp, as we need A to (3)
@@ -843,6 +874,7 @@ UpdateClock:
                 lda zptmp               ;   the subtract back in Y, and load the    (3)
                                         ;   temp value we saved earlier into A.
 
+.if PET
                 sei                     ; Save updated jiffy timer values with      (2)
                 sty JIFFY_TIMER-2       ;   interrupts disabled.                    (3)
                 stx JIFFY_TIMER-1       ;                                           (3)
@@ -850,12 +882,18 @@ UpdateClock:
                 cli                     ;                                           (2)
                 ;                                                                 +----
                 ; Estimated jiffy timer drift in μs per applied clock update:       50
+.elseif C64
+                jsr SETTIM
+                ;                                                                 +----
+                ; Estimated jiffy timer drift in μs per applied clock update,
+                ;   excluding read and write of timer:                              24
+.endif
 
                 jmp IncrementMinute     ; Increment the minute count
 
 @noupdate:      rts
 
-.if PETSDPLUS
+.if PETSDPLUS   ; SendCommand and GetDeviceStatus are only needed for petSD+
 
 ;----------------------------------------------------------------------------
 ; SendCommand

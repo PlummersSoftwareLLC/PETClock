@@ -9,6 +9,10 @@
     
     CLRSCR        = $E544   ; Clear screen
 
+    zptmp  = $FB
+    zptmpB = $FD
+    zptmpC = $22
+
 ; Microsoft BASIC 2.0 ROM Functions
 
 ; $A000	Basic cold start vector ($E394)

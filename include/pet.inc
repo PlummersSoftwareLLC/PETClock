@@ -5,7 +5,14 @@
     SCRATCH_START = $033A   ; Second cassette buffer on PET
     SCRATCH_END   = $03F9   ; End of cassette buffer  
 
-	SCREEN_MEM    = $8000
+	SCREEN_MEM    = $8000   ; Screen buffer of 1000 bytes
+
+	JIFFY_TIMER	  = $008F	; LSB of jiffy timer
+
+	zptmp  = $BD
+	zptmpB = $00
+	zptmpC = $1F
+
 
 ; --------- zero page -------------------------------------------------------
 
