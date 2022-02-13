@@ -1,4 +1,4 @@
-# PET Clock
+# PET Clock for PET or Commodore 64
 
 [![CI](https://github.com/PlummersSoftwareLLC/PETClock/actions/workflows/CI.yml/badge.svg)](https://github.com/PlummersSoftwareLLC/PETClock/actions/workflows/CI.yml)
 
@@ -9,21 +9,23 @@ Source code to [Dave's Garage](https://www.youtube.com/c/DavesGarage/featured) v
 ## Configuring and building
 
 In the [`settings.inc`](settings.inc) file, a number of symbols are defined that can be used to configure the build:
-|Name|Possible values|Meaning|
-|-|-|-|
-|COLUMNS|40 or 80|Screen width of the target machine, in columns.|
-|DEBUG|0 or 1|Set to 1 to enable code that only is included for debug builds.|
-|DEVICE_NUM|8 to 15|Device number of the petSD+. Only used if PETSDPLUS=1.|
-|EPROM|0 or 1|When set to 1, the BASIC stub and load address will not be included in the build output.|
-|PETSDPLUS|0 or 1|When set to 1, the clock will read RTC from petSD+ instead of the jiffy timer.|
-|SHOWAMDEFAULT|0 or 1|Set to 1 to use a dot separator for AM and colon for PM. Otherwise, the separator is a colon at all times.|
+|Name|Possible values|Mandatory|Meaning|
+|-|-|-|-|
+|C64|0 or 1|No|Configure build for the Commodore 64. Exactly one of C64 or PET **must** be defined to equal 1.|
+|COLUMNS|40 or 80|Yes|Screen width of the target machine, in columns.|
+|DEBUG|0 or 1|Yes|Set to 1 to enable code that only is included for debug builds.|
+|DEVICE_NUM|8 to 15|No|Device number of the petSD+. Only used if PETSDPLUS=1.|
+|EPROM|0 or 1|Yes|When set to 1, the BASIC stub and load address will not be included in the build output.|
+|PET|0 or 1|No|Configure build for the PET. Exactly one of C64 or PET **must** be defined to equal 1.|
+|PETSDPLUS|0 or 1|Yes|When set to 1, the clock will read RTC from petSD+ instead of the jiffy timer. Currently, the petSD+ is only supported on the PET.|
+|SHOWAMDEFAULT|0 or 1|Yes|Set to 1 to use a dot separator for AM and colon for PM. Otherwise, the separator is a colon at all times.|
 
 This repository's code targets the ca65 assembler and cl65 linker that are part of the [cc65](https://cc65.github.io/) GitHub project. You will need a fairly recent build of cc65 for assembly of this repository's contents to work.
 
 With the cc65 toolkit installed and in your PATH, you can build the application using the following command:
 
 ```text
-cl65 -o petclock.prg -t none petclock.asm
+cl65 -o petclock.prg --asm-include-dir include -t none petclock.asm
 ```
 
 ## Loading and running

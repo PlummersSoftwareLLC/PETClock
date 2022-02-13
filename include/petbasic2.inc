@@ -1,6 +1,3 @@
-; TODO: convert commented addresses to values for BASIC 4
-
-
 ; --------- BASIC 2 ROM ROUTINES -----------------------------------------
 
 BASIC	.equ 2		; remember BASIC 2 selection

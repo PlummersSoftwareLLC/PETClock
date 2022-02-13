@@ -23,4 +23,6 @@ jobs:
         make
 
     - name: "Assemble PETClock"
-      run: cc65/bin/cl65 petclock.asm -t none
+      run: |
+        cc65/bin/cl65 petclock.asm --asm-include-dir include --asm-define PET=1 -t none
+        cc65/bin/cl65 petclock.asm --asm-include-dir include --asm-define C64=1 -t none

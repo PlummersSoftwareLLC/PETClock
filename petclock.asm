@@ -21,22 +21,49 @@
 
 ; Definitions -----------------------------------------------------------------------
 
-PET             = 1
 MINUTE_JIFFIES  = 3600              ; Number of jiffies in a minute
 SECOND_JIFFIES  = 60                ; Number of jiffies in a second
 
-.INCLUDE "pet.inc"
-.INCLUDE "basic4.inc"
-
-.if EPROM
-    BASE        = $B000     ; Open PET ROM space
-.else
-    BASE        = $0401     ; PET Start of BASIC
-.endif
-
 ; System Locations ------------------------------------------------------------------
 
-SCREEN_MEM  = $8000
+.ifndef C64
+    C64         = 0
+.endif
+
+.ifndef PET
+    PET         = 0
+.endif
+
+.if (.not (PET .xor C64))
+    .fatal "Define exactly one of PET or C64 to equal 1."
+.endif
+
+.if (C64 .and PETSDPLUS)
+    .fatal "petSD+ is currently not supported on the C64."
+.endif
+
+.INCLUDE "common.inc"
+
+.if C64
+    .INCLUDE "c64.inc"
+    .INCLUDE "kernal.inc"
+    .if EPROM
+        BASE    = $8000     ; Open C64 ROM space (not re)
+    .else
+        BASE    = $0801     ; C64 Start of BASIC
+    .endif
+.endif
+
+.if PET
+    .INCLUDE "pet.inc"
+    .INCLUDE "petbasic4.inc"
+    .if EPROM
+        BASE    = $B000     ; Open PET ROM space
+    .else
+        BASE    = $0401     ; PET Start of BASIC
+    .endif
+.endif
+
 JIFFY_TIMER = $008F
 
 ; Our Definitions -------------------------------------------------------------------
@@ -45,9 +72,8 @@ zptmp  = $BD
 zptmpB = $00
 zptmpC = $1F
 
-.org 826                            ; Second cassette buffer on PET
+.org SCRATCH_START
 .bss
-
 
 ; These are scratch variables - they are here in the cassette buffer so that we can
 ; be burned into ROM (if we just used .byte we couldn't write values back)
@@ -105,7 +131,8 @@ DeviceBufferStart:
 DeviceBufferEnd:
 
 .assert (DeviceBufferEnd - DeviceBufferStart) = 23, error   ; Verify length of struct matches fixed RTC format
-.assert * <= 1000, error                                    ; Make sure we haven't run off the end of the buffer
+.assert * <= SCRATCH_END, error                             ; Make sure we haven't run off the end of the buffer
+
 
 ; Start of Binary -------------------------------------------------------------------
 
