@@ -93,6 +93,7 @@ ScratchStart:
    BkgndColor:       .res  1
    BorderColor:      .res  1
    TextColor:        .res  1
+   CurColor:         .res  1
 .endif   
 ScratchEnd:
 
@@ -194,9 +195,18 @@ notEscape:
                 cmp #$4C
                 bne @notLoad
                 jsr LoadClock           ; L pressed, load time off RTC
-                jmp @MainLoop
+                jmp MainLoop
 
 @notLoad:
+.endif
+
+.if C64
+                cmp #$43
+                bne @notColor
+                jsr NextColor           ; C pressed, move to next character color
+                jmp MainLoop
+
+@notColor:
 .endif
                 cmp #$5A
                 bne @notZero
@@ -261,6 +271,7 @@ ExitApp:
 .endif
                 rts
 
+
 ;-----------------------------------------------------------------------------------
 ; InitVariables
 ;-----------------------------------------------------------------------------------
@@ -293,13 +304,31 @@ InitVariables:  ldx #ScratchEnd-ScratchStart
                 lda TEXT_COLOR
                 sta TextColor
 
-                lda #BLACK                  ; Set colors to green on black
+                lda #BLACK                  ; Set colors to COLOR on black
                 sta BORDER_COLOR
                 sta BKGND_COLOR
-                lda #GREEN
+                lda #COLOR
+                sta CurColor
                 sta TEXT_COLOR
 .endif
                 rts
+
+
+;-----------------------------------------------------------------------------------
+; NextColor - Switches to the next character color in the palette of 1 to 15.
+;-----------------------------------------------------------------------------------
+NextColor:
+                inc CurColor            ; Increment current color code 
+                lda CurColor            ; Load the color code and check if it's
+                cmp #16                 ;   still under 16. If so, we're ready to
+                bcc @setcolor           ;   set it.
+
+                lda #1                  ; We're past the end of the palette, so
+                sta CurColor            ;   go back to the first color in it.
+
+@setcolor:      sta TEXT_COLOR
+                rts
+
 
 ;-----------------------------------------------------------------------------------
 ; UpdateClockPos - Moves the clock around on the screen so that it doesn't burn
@@ -337,6 +366,7 @@ UpdateClockPos:
 
 @nomove:        clc
                 rts
+
 
 ;-----------------------------------------------------------------------------------
 ; ConvertPetSCII - Convert .literal ASCI to PET screen code
@@ -436,6 +466,7 @@ ZeroSeconds:
                 ldx #0
                 jmp writeJiffy
 
+
 ;-----------------------------------------------------------------------------------
 ; SetSeconds - Set jiffy timer to a specific number of seconds
 ;-----------------------------------------------------------------------------------
@@ -463,6 +494,7 @@ writeJiffy:     ldy #0                  ; Highest byte is always 0
                 cli
 
                 rts
+
 
 ;-----------------------------------------------------------------------------------
 ; LoadClock - Sets the current time of day from hardware or the jiffy clock
@@ -726,6 +758,7 @@ GetDigitChars:
 
                 rts
 
+
 ;-----------------------------------------------------------------------------------
 ; UpdateJiffyClock - Sets the jiffy clock to the time we say it is
 ;-----------------------------------------------------------------------------------
@@ -816,6 +849,7 @@ UpdateJiffyClock:
 
 @done:          rts
 
+
 ;-----------------------------------------------------------------------------------
 ;  GetCharsValue - Convert tens and digits character to combined value
 ;-----------------------------------------------------------------------------------
@@ -884,6 +918,7 @@ UpdateClock:
 
 @noupdate:      rts
 
+
 .if PETSDPLUS   ; SendCommand and GetDeviceStatus are only needed for petSD+
 
 ;----------------------------------------------------------------------------
@@ -914,6 +949,7 @@ SendCommand:    stx zptmpC
 @done:
                 jsr UNLSN               ; Unlisten
                 rts
+
 
 ;----------------------------------------------------------------------------
 ; GetDeviceStatus
@@ -947,6 +983,7 @@ GetDeviceStatus:
                 rts
 
 .endif
+
 
 ;-----------------------------------------------------------------------------------
 ; Increment/Decrement Hour/Minute
@@ -1057,6 +1094,7 @@ notsubzero:     lda #'1'-1              ; If we're going under 1
 
 doneDec:        rts
 
+
 ;-----------------------------------------------------------------------------------
 ; DrawClockXY   - Draws the current clock at the specified X/Y location on screen
 ;-----------------------------------------------------------------------------------
@@ -1150,6 +1188,7 @@ DrawClockXY:    stx ClockX
 
                 rts
 
+
 ;-----------------------------------------------------------------------------------
 ; DrawBigChar - Draws a given big character at the given X/Y positon
 ;-----------------------------------------------------------------------------------
@@ -1215,6 +1254,7 @@ DrawBigChar:    pha                     ; Save the A for later, it's the charact
                 bne @byteloop
                 rts
 
+
 ;-----------------------------------------------------------------------------------
 ; GetCursorAddr - Returns address of X/Y position on screen
 ;-----------------------------------------------------------------------------------
@@ -1247,6 +1287,7 @@ nocarry:        adc temp
                 ldy resultHi
                 rts
 
+
 ;-----------------------------------------------------------------------------------
 ; Multiply      Multiplies X * Y == ResultLo/ResultHi
 ;-----------------------------------------------------------------------------------
@@ -1275,6 +1316,7 @@ enterLoop:      lsr MultiplyTemp
                 bne loop
                 rts
 
+
 ;-----------------------------------------------------------------------------------
 ; ClearScreen
 ;-----------------------------------------------------------------------------------
@@ -1283,6 +1325,7 @@ enterLoop:      lsr MultiplyTemp
 ;-----------------------------------------------------------------------------------
 
 ClearScreen:    jmp CLRSCR
+
 
 ;-----------------------------------------------------------------------------------
 ; WriteLine - Writes a line of text to the screen using CHROUT ($FFD2)
@@ -1301,6 +1344,7 @@ WriteLine:      sta zptmp
                 bne @loop
 done:           rts
 
+
 ;-----------------------------------------------------------------------------------
 ; RepeatChar - Writes a character A to the output X times
 ;-----------------------------------------------------------------------------------
@@ -1312,6 +1356,8 @@ RepeatChar:     jsr CHROUT
                 dex
                 bne RepeatChar
                 rts
+
+
 .if DEBUG
 ; During development we output the LOAD statement after running to make the
 ; code-test-debug cycle go a little easier - less typing
@@ -1320,6 +1366,7 @@ loadstr:        .literal "LOAD ", 34,"PETCLOCK.PRG",34,", 9",13,0
 hello:          .literal "STARTING PETCLOCK...", 0
 
 .endif
+
 
 ;-----------------------------------------------------------------------------------
 ; GetCharTbl - Returns the address of the character block table for whatever petscii

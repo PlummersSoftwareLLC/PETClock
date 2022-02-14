@@ -12,12 +12,13 @@ In the [`settings.inc`](settings.inc) file, a number of symbols are defined that
 |Name|Possible values|Mandatory|Meaning|
 |-|-|-|-|
 |C64|0 or 1|No|Configure build for the Commodore 64. Exactly one of C64 or PET **must** be defined to equal 1.|
+|COLOR|1 to 15|On C64|Color code to use for the characters of the clock. Only used and needed on the Commodore 64. A reference for the color C64 codes can be found [here](https://www.c64-wiki.com/wiki/Color).|
 |COLUMNS|40 or 80|Yes|Screen width of the target machine, in columns.|
 |DEBUG|0 or 1|Yes|Set to 1 to enable code that only is included for debug builds.|
-|DEVICE_NUM|8 to 15|No|Device number of the petSD+. Only used if PETSDPLUS=1.|
+|DEVICE_NUM|8 to 15|With petSD+|Device number of the petSD+. Only used if PETSDPLUS=1.|
 |EPROM|0 or 1|Yes|When set to 1, the BASIC stub and load address will not be included in the build output.|
 |PET|0 or 1|No|Configure build for the PET. Exactly one of C64 or PET **must** be defined to equal 1.|
-|PETSDPLUS|0 or 1|Yes|When set to 1, the clock will read RTC from petSD+ instead of the jiffy timer. Currently, the petSD+ is only supported on the PET.|
+|PETSDPLUS|0 or 1|Yes|When set to 1, the clock will read RTC from [petSD+](http://petsd.net/) instead of the jiffy timer. Currently, the petSD+ is only supported on the PET.|
 |SHOWAMDEFAULT|0 or 1|Yes|Set to 1 to use a dot separator for AM and colon for PM. Otherwise, the separator is a colon at all times.|
 
 Note that the PET and C64 symbols are not set by default. The reason is that the assembly target is a prime candidate to be set via the command line.
@@ -81,6 +82,7 @@ When the clock is running, some actions can be taken by pressing certain keys on
 |U|Update clock immediately|
 |S|Toggle showing whether it's AM or PM. When this setting is ON, the number separator will be a dot in AM, and a colon in PM. When the setting is OFF, the separator is a colon at all times.|
 |L|Load the current time from the petSD+ (on petSD+ builds, only)|
+|C|Switch to the next character color in the palette (on C64 builds, only)|
 
 You can stop the clock and return to BASIC by pressing RUN/STOP.
 

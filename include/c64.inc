@@ -11,7 +11,6 @@
     BKGND_COLOR   = $D021   ; Background color address
     TEXT_COLOR    = $0286   ; Text color address
     BLACK         = 0
-    GREEN         = 5
 
 	JIFFY_TIMER	  = $00A2	; LSB of jiffy timer
 
