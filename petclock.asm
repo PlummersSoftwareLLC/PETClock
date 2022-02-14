@@ -207,6 +207,13 @@ notEscape:
                 jmp MainLoop
 
 @notColor:
+
+                cmp #$C3
+                bne @notColorDn
+                jsr PreviousColor       ; SHIFT-C pressed, move to previous character color
+                jmp MainLoop
+
+@notColorDn:
 .endif
                 cmp #$5A
                 bne @notZero
@@ -314,6 +321,8 @@ InitVariables:  ldx #ScratchEnd-ScratchStart
                 rts
 
 
+.if C64         ; Colors only exist on the Commodore 64
+
 ;-----------------------------------------------------------------------------------
 ; NextColor - Switches to the next character color in the palette of 1 to 15.
 ;-----------------------------------------------------------------------------------
@@ -329,6 +338,25 @@ NextColor:
 @setcolor:      sta TEXT_COLOR
                 rts
 
+;-----------------------------------------------------------------------------------
+; PreviousColor - Switches to the previous character color in the palette of 1 to 15.
+;-----------------------------------------------------------------------------------
+PreviousColor:
+                dec CurColor            ; Increment current color code 
+                lda CurColor            ; Load the color code and check if it's
+                cmp #0                  ;   between 1 and 15. If so, we're ready to
+                beq @tolastcolor        ;   set it.
+                cmp #16
+                bcc @setcolor
+
+@tolastcolor:   lda #15                 ; We're before the start of the palette, so
+                sta CurColor            ;   go to the last color in it.
+
+@setcolor:      sta TEXT_COLOR
+                rts
+
+
+.endif          ; C64
 
 ;-----------------------------------------------------------------------------------
 ; UpdateClockPos - Moves the clock around on the screen so that it doesn't burn
@@ -583,6 +611,8 @@ TwoInTens:      dec HourTens            ; If it's 2X:XX we go back 12 hours
                 jmp LoadSeconds
 
 
+.if !PETSDPLUS  ; We don't load the jiffy timer with petSD+
+
 ;-----------------------------------------------------------------------------------
 ; LoadJiffyClock - Sets the clock structure fields to time in jiffy clock
 ;-----------------------------------------------------------------------------------
@@ -726,6 +756,8 @@ LoadJiffyClock:
                 sty ClkSecDigits
 
                 rts
+
+.endif          ; !PETSDPLUS
 
 
 ;-----------------------------------------------------------------------------------
@@ -982,7 +1014,7 @@ GetDeviceStatus:
                 jsr UNTLK               ; UNTALK
                 rts
 
-.endif
+.endif          ; PETSDPLUS
 
 
 ;-----------------------------------------------------------------------------------
