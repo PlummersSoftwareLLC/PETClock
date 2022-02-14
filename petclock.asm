@@ -20,11 +20,6 @@
 
 .INCLUDE "settings.inc"
 
-; Definitions -----------------------------------------------------------------------
-
-MINUTE_JIFFIES  = 3600              ; Number of jiffies in a minute
-SECOND_JIFFIES  = 60                ; Number of jiffies in a second
-
 ; System Locations ------------------------------------------------------------------
 
 .ifndef C64
