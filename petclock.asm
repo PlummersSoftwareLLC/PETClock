@@ -4,6 +4,7 @@
 ; (c) Dave Plummer, 12/26/2016. If you can read it, you can use it! No warranties!
 ;                   12/26/2021. Ported to the cc65 assembler package (davepl)
 ;                   01/19/2022. Run clock based on jiffy/RTC time (rbergen)
+;                   02/13/2022. Add C64 support
 ;-----------------------------------------------------------------------------------
 ; Environment: xpet -fs9 d:\OneDrive\PET\source\ -device9 1
 ;            : PET 2001
@@ -19,35 +20,50 @@
 
 .INCLUDE "settings.inc"
 
-; Definitions -----------------------------------------------------------------------
-
-PET             = 1
-MINUTE_JIFFIES  = 3600              ; Number of jiffies in a minute
-SECOND_JIFFIES  = 60                ; Number of jiffies in a second
-
-.INCLUDE "pet.inc"
-.INCLUDE "basic4.inc"
-
-.if EPROM
-    BASE        = $B000     ; Open PET ROM space
-.else
-    BASE        = $0401     ; PET Start of BASIC
-.endif
-
 ; System Locations ------------------------------------------------------------------
 
-SCREEN_MEM  = $8000
-JIFFY_TIMER = $008F
+.ifndef C64
+    C64         = 0
+.endif
+
+.ifndef PET
+    PET         = 0
+.endif
+
+.if (.not (PET .xor C64))
+    .fatal "Define exactly one of PET or C64 to equal 1."
+.endif
+
+.if (C64 .and PETSDPLUS)
+    .fatal "petSD+ is currently not supported on the C64."
+.endif
+
+.INCLUDE "common.inc"
+
+.if C64
+    .INCLUDE "c64.inc"
+    .INCLUDE "kernal.inc"
+    .if EPROM
+        BASE    = $8000     ; Open C64 ROM space (not re)
+    .else
+        BASE    = $0801     ; C64 Start of BASIC
+    .endif
+.endif
+
+.if PET
+    .INCLUDE "pet.inc"
+    .INCLUDE "petbasic4.inc"
+    .if EPROM
+        BASE    = $B000     ; Open PET ROM space
+    .else
+        BASE    = $0401     ; PET Start of BASIC
+    .endif
+.endif
 
 ; Our Definitions -------------------------------------------------------------------
 
-zptmp  = $BD
-zptmpB = $00
-zptmpC = $1F
-
-.org 826                            ; Second cassette buffer on PET
+.org SCRATCH_START
 .bss
-
 
 ; These are scratch variables - they are here in the cassette buffer so that we can
 ; be burned into ROM (if we just used .byte we couldn't write values back)
@@ -68,6 +84,12 @@ ScratchStart:
    remainder:        .res  3            ; Remainder for jiffy load division
    PmFlag:           .res  1            ; Keep track of AM/PM. AM=0, PM=1
    ShowAM:           .res  1            ; Indicate AM with dot instead of colon
+.if C64
+   BkgndColor:       .res  1
+   BorderColor:      .res  1
+   TextColor:        .res  1
+   CurColor:         .res  1
+.endif   
 ScratchEnd:
 
 ; This is where we store the time
@@ -105,7 +127,8 @@ DeviceBufferStart:
 DeviceBufferEnd:
 
 .assert (DeviceBufferEnd - DeviceBufferStart) = 23, error   ; Verify length of struct matches fixed RTC format
-.assert * <= 1000, error                                    ; Make sure we haven't run off the end of the buffer
+.assert * <= SCRATCH_END, error                             ; Make sure we haven't run off the end of the buffer
+
 
 ; Start of Binary -------------------------------------------------------------------
 
@@ -167,9 +190,25 @@ notEscape:
                 cmp #$4C
                 bne @notLoad
                 jsr LoadClock           ; L pressed, load time off RTC
-                jmp @MainLoop
+                jmp MainLoop
 
 @notLoad:
+.endif
+
+.if C64
+                cmp #$43
+                bne @notColor
+                jsr NextColor           ; C pressed, move to next character color
+                jmp MainLoop
+
+@notColor:
+
+                cmp #$C3
+                bne @notColorDn
+                jsr PreviousColor       ; SHIFT-C pressed, move to previous character color
+                jmp MainLoop
+
+@notColorDn:
 .endif
                 cmp #$5A
                 bne @notZero
@@ -216,6 +255,15 @@ ExitApp:
                 jsr UpdateJiffyClock    ; Set jiffy clock to our time
 .endif
 
+.if C64
+                lda BorderColor         ; Restore colors to how we found them
+                sta BORDER_COLOR
+                lda BkgndColor
+                sta BKGND_COLOR
+                lda TextColor
+                sta TEXT_COLOR
+.endif
+
                 jsr ClearScreen
 
 .if DEBUG
@@ -224,6 +272,7 @@ ExitApp:
                 jsr WriteLine
 .endif
                 rts
+
 
 ;-----------------------------------------------------------------------------------
 ; InitVariables
@@ -249,7 +298,60 @@ InitVariables:  ldx #ScratchEnd-ScratchStart
                 lda #SHOWAMDEFAULT          ; Set ShowAM setting to default
                 sta ShowAM
 
+.if C64
+                lda BORDER_COLOR            ; Save current colors for later
+                sta BorderColor
+                lda BKGND_COLOR
+                sta BkgndColor
+                lda TEXT_COLOR
+                sta TextColor
+
+                lda #BLACK                  ; Set colors to COLOR on black
+                sta BORDER_COLOR
+                sta BKGND_COLOR
+                lda #COLOR
+                sta CurColor
+                sta TEXT_COLOR
+.endif
                 rts
+
+
+.if C64         ; Colors only exist on the Commodore 64
+
+;-----------------------------------------------------------------------------------
+; NextColor - Switches to the next character color in the palette of 1 to 15.
+;-----------------------------------------------------------------------------------
+NextColor:
+                inc CurColor            ; Increment current color code 
+                lda CurColor            ; Load the color code and check if it's
+                cmp #16                 ;   still under 16. If so, we're ready to
+                bcc @setcolor           ;   set it.
+
+                lda #1                  ; We're past the end of the palette, so
+                sta CurColor            ;   go back to the first color in it.
+
+@setcolor:      sta TEXT_COLOR
+                rts
+
+;-----------------------------------------------------------------------------------
+; PreviousColor - Switches to the previous character color in the palette of 1 to 15.
+;-----------------------------------------------------------------------------------
+PreviousColor:
+                dec CurColor            ; Increment current color code 
+                lda CurColor            ; Load the color code and check if it's
+                cmp #0                  ;   between 1 and 15. If so, we're ready to
+                beq @tolastcolor        ;   set it.
+                cmp #16
+                bcc @setcolor
+
+@tolastcolor:   lda #15                 ; We're before the start of the palette, so
+                sta CurColor            ;   go to the last color in it.
+
+@setcolor:      sta TEXT_COLOR
+                rts
+
+
+.endif          ; C64
 
 ;-----------------------------------------------------------------------------------
 ; UpdateClockPos - Moves the clock around on the screen so that it doesn't burn
@@ -287,6 +389,7 @@ UpdateClockPos:
 
 @nomove:        clc
                 rts
+
 
 ;-----------------------------------------------------------------------------------
 ; ConvertPetSCII - Convert .literal ASCI to PET screen code
@@ -386,6 +489,7 @@ ZeroSeconds:
                 ldx #0
                 jmp writeJiffy
 
+
 ;-----------------------------------------------------------------------------------
 ; SetSeconds - Set jiffy timer to a specific number of seconds
 ;-----------------------------------------------------------------------------------
@@ -401,16 +505,19 @@ SetSeconds:
 
 @calcjiffies:   ldy #SECOND_JIFFIES     ; Multiply seconds by jiffies per second
                 jsr Multiply            ;   and load results in registers
-                lda resultLo
                 ldx resultHi
+                lda resultLo
 
 writeJiffy:     ldy #0                  ; Highest byte is always 0
+
                 sei                     ; Write jiffy timer with interrupts disabled.
-                sta JIFFY_TIMER
-                stx JIFFY_TIMER-1
                 sty JIFFY_TIMER-2
+                stx JIFFY_TIMER-1
+                sta JIFFY_TIMER
                 cli
+
                 rts
+
 
 ;-----------------------------------------------------------------------------------
 ; LoadClock - Sets the current time of day from hardware or the jiffy clock
@@ -499,19 +606,25 @@ TwoInTens:      dec HourTens            ; If it's 2X:XX we go back 12 hours
                 jmp LoadSeconds
 
 
+.if !PETSDPLUS  ; We don't load the jiffy timer with petSD+
+
 ;-----------------------------------------------------------------------------------
 ; LoadJiffyClock - Sets the clock structure fields to time in jiffy clock
 ;-----------------------------------------------------------------------------------
 
 LoadJiffyClock:
-                sei                     ; Load jiffy clock with interrupts disabled.
-                lda JIFFY_TIMER         ;   We put the low byte in the result variable
-                ldx JIFFY_TIMER-1       ;   zptmp, and the two high bytes in the two
-                ldy JIFFY_TIMER-2       ;   lowest bytes of the remainder. Together with
-                cli                     ;   the initial rotate left below, this sets us
-                sta zptmp               ;   up for the most efficient division to get the
-                stx remainder           ;   hour value out of the jiffy clock.
-                sty remainder+1
+                sei                     ; Load jiffy clock with interrupts disabled
+                lda JIFFY_TIMER
+                ldx JIFFY_TIMER-1
+                ldy JIFFY_TIMER-2
+                cli
+
+                sta zptmp               ; We put the low byte in the result variable
+                stx remainder           ;   zptmp, and the two high bytes in the two
+                sty remainder+1         ;   lowest bytes of the remainder. Together with
+                                        ;   the initial rotate left below, this sets us
+                                        ;   up for the most efficient division to get the
+                                        ;   hour value out of the jiffy clock.
 
                 lda #0                  ; Clear remainder high byte
                 sta remainder+2
@@ -639,6 +752,8 @@ LoadJiffyClock:
 
                 rts
 
+.endif          ; !PETSDPLUS
+
 
 ;-----------------------------------------------------------------------------------
 ; GetDigitChars - Calculate the tens and digits characters of the value in X
@@ -669,6 +784,7 @@ GetDigitChars:
                 tax
 
                 rts
+
 
 ;-----------------------------------------------------------------------------------
 ; UpdateJiffyClock - Sets the jiffy clock to the time we say it is
@@ -760,6 +876,7 @@ UpdateJiffyClock:
 
 @done:          rts
 
+
 ;-----------------------------------------------------------------------------------
 ;  GetCharsValue - Convert tens and digits character to combined value
 ;-----------------------------------------------------------------------------------
@@ -828,7 +945,8 @@ UpdateClock:
 
 @noupdate:      rts
 
-.if PETSDPLUS
+
+.if PETSDPLUS   ; SendCommand and GetDeviceStatus are only needed for petSD+
 
 ;----------------------------------------------------------------------------
 ; SendCommand
@@ -858,6 +976,7 @@ SendCommand:    stx zptmpC
 @done:
                 jsr UNLSN               ; Unlisten
                 rts
+
 
 ;----------------------------------------------------------------------------
 ; GetDeviceStatus
@@ -890,7 +1009,8 @@ GetDeviceStatus:
                 jsr UNTLK               ; UNTALK
                 rts
 
-.endif
+.endif          ; PETSDPLUS
+
 
 ;-----------------------------------------------------------------------------------
 ; Increment/Decrement Hour/Minute
@@ -1001,6 +1121,7 @@ notsubzero:     lda #'1'-1              ; If we're going under 1
 
 doneDec:        rts
 
+
 ;-----------------------------------------------------------------------------------
 ; DrawClockXY   - Draws the current clock at the specified X/Y location on screen
 ;-----------------------------------------------------------------------------------
@@ -1094,6 +1215,7 @@ DrawClockXY:    stx ClockX
 
                 rts
 
+
 ;-----------------------------------------------------------------------------------
 ; DrawBigChar - Draws a given big character at the given X/Y positon
 ;-----------------------------------------------------------------------------------
@@ -1159,6 +1281,7 @@ DrawBigChar:    pha                     ; Save the A for later, it's the charact
                 bne @byteloop
                 rts
 
+
 ;-----------------------------------------------------------------------------------
 ; GetCursorAddr - Returns address of X/Y position on screen
 ;-----------------------------------------------------------------------------------
@@ -1191,6 +1314,7 @@ nocarry:        adc temp
                 ldy resultHi
                 rts
 
+
 ;-----------------------------------------------------------------------------------
 ; Multiply      Multiplies X * Y == ResultLo/ResultHi
 ;-----------------------------------------------------------------------------------
@@ -1219,6 +1343,7 @@ enterLoop:      lsr MultiplyTemp
                 bne loop
                 rts
 
+
 ;-----------------------------------------------------------------------------------
 ; ClearScreen
 ;-----------------------------------------------------------------------------------
@@ -1227,6 +1352,7 @@ enterLoop:      lsr MultiplyTemp
 ;-----------------------------------------------------------------------------------
 
 ClearScreen:    jmp CLRSCR
+
 
 ;-----------------------------------------------------------------------------------
 ; WriteLine - Writes a line of text to the screen using CHROUT ($FFD2)
@@ -1245,6 +1371,7 @@ WriteLine:      sta zptmp
                 bne @loop
 done:           rts
 
+
 ;-----------------------------------------------------------------------------------
 ; RepeatChar - Writes a character A to the output X times
 ;-----------------------------------------------------------------------------------
@@ -1256,6 +1383,8 @@ RepeatChar:     jsr CHROUT
                 dex
                 bne RepeatChar
                 rts
+
+
 .if DEBUG
 ; During development we output the LOAD statement after running to make the
 ; code-test-debug cycle go a little easier - less typing
@@ -1264,6 +1393,7 @@ loadstr:        .literal "LOAD ", 34,"PETCLOCK.PRG",34,", 9",13,0
 hello:          .literal "STARTING PETCLOCK...", 0
 
 .endif
+
 
 ;-----------------------------------------------------------------------------------
 ; GetCharTbl - Returns the address of the character block table for whatever petscii
