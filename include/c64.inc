@@ -7,6 +7,14 @@
 
 	SCREEN_MEM    = $0400   ; Screen buffer of 1000 bytes
     
+    BORDER_COLOR  = $D020   ; Border color address
+    BKGND_COLOR   = $D021   ; Background color address
+    TEXT_COLOR    = $0286   ; Text color address
+    BLACK         = 0
+    GREEN         = 5
+
+	JIFFY_TIMER	  = $00A2	; LSB of jiffy timer
+
     CLRSCR        = $E544   ; Clear screen
 
     zptmp  = $FB

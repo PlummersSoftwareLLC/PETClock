@@ -20,13 +20,30 @@ In the [`settings.inc`](settings.inc) file, a number of symbols are defined that
 |PETSDPLUS|0 or 1|Yes|When set to 1, the clock will read RTC from petSD+ instead of the jiffy timer. Currently, the petSD+ is only supported on the PET.|
 |SHOWAMDEFAULT|0 or 1|Yes|Set to 1 to use a dot separator for AM and colon for PM. Otherwise, the separator is a colon at all times.|
 
+Note that the PET and C64 symbols are not set by default. The reason is that the assembly target is a prime candidate to be set via the command line.
+
 This repository's code targets the ca65 assembler and cl65 linker that are part of the [cc65](https://cc65.github.io/) GitHub project. You will need a fairly recent build of cc65 for assembly of this repository's contents to work.
 
-With the cc65 toolkit installed and in your PATH, you can build the application using the following command:
+With the cc65 toolkit installed and in your PATH, you can build the application using any of the following commands:
 
-```text
-cl65 -o petclock.prg --asm-include-dir include -t none petclock.asm
-```
+* If the assembly target is set in `settings.inc`:
+
+  ```text
+  cl65 -o petclock.prg --asm-include-dir include -t none petclock.asm
+  ```
+
+* For the PET:
+
+  ```text
+  cl65 -o petclock.prg --asm-include-dir include --asm-define PET=1 -t none petclock.asm
+  ```
+
+* For the Commodore 64:
+
+  ```text
+  cl65 -o petclock.prg --asm-include-dir include --asm-define C64=1 -t none petclock.asm
+  ```
+
 
 ## Loading and running
 

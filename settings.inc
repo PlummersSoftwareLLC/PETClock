@@ -5,10 +5,8 @@ EPROM           = 0     ; When TRUE, no BASIC stub, no load address in file
 PETSDPLUS       = 0     ; When TRUE, read RTC from petSD+. Only supported on PET
 SHOWAMDEFAULT   = 1     ; Use a dot separator for AM and colon for PM
 
-.ifndef C64
-C64             = 0     ; Set to 1 to build for C64. Either this or PET must be 1
-.endif
+; --- Uncomment one of the following two lines to select the build target.
+;     Alternatively, either symbol can be defined using the ca65/cl65 command line.
 
-.ifndef PET
-PET             = 0     ; Set to 1 to build for PET. Either this or C64 must be 1
-.endif
+;C64             = 1     ; Set to 1 to build for C64. Either this or PET must be 1
+;PET             = 1     ; Set to 1 to build for PET. Either this or C64 must be 1
