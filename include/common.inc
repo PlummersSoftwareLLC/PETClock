@@ -6,8 +6,8 @@
 	CLRHOME		= $93 ; clear screen
 	CURDN		= $11 ; cursor down
 
-	MINUTE_JIFFIES = 3600 ; Number of jiffies in a minute
-	SECOND_JIFFIES = 60   ; Number of jiffies in a second
+	SECOND_JIFFIES = 60   				 ; Number of jiffies in a second
+	MINUTE_JIFFIES = 60 * SECOND_JIFFIES ; Number of jiffies in a minute
 
 ;---------- tokens ----------------------------------------------------------
 	TK_MUL		= $ac ; *

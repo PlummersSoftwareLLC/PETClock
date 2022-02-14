@@ -20,6 +20,14 @@
     zptmpB = $FD
     zptmpC = $22
 
+; 6526 addresses
+
+    CIA_TENTHS  = $DC08
+    CIA_SECONDS = $DC09
+    CIA_MINUTES = $DC0A
+    CIA_HOURS   = $DC0B
+    CIA_CRB     = $DD0F
+
 ; Microsoft BASIC 2.0 ROM Functions
 
 ; $A000	Basic cold start vector ($E394)
