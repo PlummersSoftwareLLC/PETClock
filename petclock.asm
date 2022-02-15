@@ -131,20 +131,32 @@ DeviceBufferEnd:
 
 ; Macros ---------------------------------------------------------------------------
 
+;-----------------------------------------------------------------------------------
+; ChangeClock - Call routine(s) that change the clock values. The actual routine
+;               call(s) are decorated with machine-specific calls, where needed.
+;               Technically, both parameters to the macro are optional: any empty
+;               parater value is skipped. In the practical sense, using this macro
+;               without at least one parameter is meaningless. 
+;-----------------------------------------------------------------------------------
+;   firstProc:  Address of first routine to call
+;  secondProc:  Address of second routine to call
+;-----------------------------------------------------------------------------------
+
 .macro          ChangeClock firstProc, secondProc
 .if C64
                 jsr ReadCIAClock
 .endif
 .ifnblank firstProc
-                jsr firstProc         ; Invoke first procedure
+                jsr firstProc         ; Invoke first routine
 .endif
 .ifnblank secondProc
-                jsr secondProc        ; Invoke second procedure
+                jsr secondProc        ; Invoke second routine
 .endif
 .if C64
                 jsr WriteCIAClock
 .endif
 .endmacro
+
 
 ; Start of Binary -------------------------------------------------------------------
 
@@ -259,8 +271,8 @@ notEscape:
 @notMinDn:      cmp #$53
                 bne @notShowAM
                 jsr ToggleShowAM        ; S pressed, toggle show AM flag
-                bcs @tomainloop
-                jmp InnerLoop
+                bcs @tomainloop         ; Perform indirect jump: MainLoop is out
+                jmp InnerLoop           ;   of reach for a direct branch.
 @tomainloop:    jmp MainLoop
 
 @notShowAM:     cmp #$55
