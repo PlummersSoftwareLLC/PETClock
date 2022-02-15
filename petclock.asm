@@ -1204,7 +1204,7 @@ InitCIAClock:
 ;----------------------------------------------------------------------------
 
 ReadCIAClock:
-                ldx CIA1_HOURS           ; We start with hours; this also triggers
+                ldx CIA1_HOURS          ; We start with hours; this also triggers
                 txa                     ;   the CIA TOD clock latch.
                 and #$80                ; Isolate PM bit, and rotate it into the
                 clc                     ;   rightmost bit. Then store it in our
@@ -1217,17 +1217,17 @@ ReadCIAClock:
                 stx HourTens
                 sty HourDigits
 
-                lda CIA1_MINUTES         ; Read minutes, convert and store
+                lda CIA1_MINUTES        ; Read minutes, convert and store
                 jsr BCDToChars
                 stx MinTens
                 sty MinDigits
 
-                lda CIA1_SECONDS         ; Read seconds, convert and store
+                lda CIA1_SECONDS        ; Read seconds, convert and store
                 jsr BCDToChars
                 stx SecTens
                 sty SecDigits
 
-                lda CIA1_TENTHS          ; Load tenths of seconds. This also unlatches
+                lda CIA1_TENTHS         ; Load tenths of seconds. This also unlatches
                 adc #'0'                ;   the TOD clock.
                 sta Tenths
 
@@ -1269,8 +1269,8 @@ WriteCIAClock:
                 and #$7f
                 sta CIA1_CRB
 
-                ldx HourTens             ; Load hour tens and digits chars, convert them
-                ldy HourDigits           ;   to BCD.
+                ldx HourTens            ; Load hour tens and digits chars, convert them
+                ldy HourDigits          ;   to BCD.
                 jsr CharsToBCD
 
                 ldy #0                  ; If the hour is 12, prepare to flip the PM
@@ -1291,7 +1291,7 @@ WriteCIAClock:
                 sty zptmp               ; Store our PM bit XOR bitmask and use it
                 eor zptmp
 
-                sta CIA1_HOURS           ; Write our calculated hours value to the CIA clock
+                sta CIA1_HOURS          ; Write our calculated hours value to the CIA clock
 
                 ldx MinTens             ; Load minute tens and digits chars, convert them
                 ldy MinDigits           ;   to BCD, and write to CIA clock.
