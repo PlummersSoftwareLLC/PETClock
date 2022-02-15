@@ -1192,7 +1192,7 @@ InitCIAClock:
                 ora #$80                ; Configure CIA1 TOD to run at 50Hz
                 bne @setfreq
 
-@pick60hz:      and #$7f                ; Configure CIA1 TOD to run at 50Hz
+@pick60hz:      and #$7f                ; Configure CIA1 TOD to run at 60Hz
 
 @setfreq:       sta CIA1_CRA
 
