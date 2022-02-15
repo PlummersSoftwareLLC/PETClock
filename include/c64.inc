@@ -22,11 +22,22 @@
 
 ; 6526 addresses
 
-    CIA_TENTHS  = $DC08
-    CIA_SECONDS = $DC09
-    CIA_MINUTES = $DC0A
-    CIA_HOURS   = $DC0B
-    CIA_CRB     = $DD0F
+    CIA1_TA_LO   = $DC04
+    CIA1_TA_HI   = $DC05
+    CIA1_TENTHS  = $DC08
+    CIA1_SECONDS = $DC09
+    CIA1_MINUTES = $DC0A
+    CIA1_HOURS   = $DC0B
+    CIA1_CRA     = $DC0E
+    CIA1_CRB     = $DC0F
+    CIA2_TA_LO   = $DD04
+    CIA2_TA_HI   = $DD05
+    CIA2_TENTHS  = $DD08
+    CIA2_SECONDS = $DD09
+    CIA2_MINUTES = $DD0A
+    CIA2_HOURS   = $DD0B
+    CIA2_CRA     = $DD0E
+    CIA2_CRB     = $DD0F
 
 ; Microsoft BASIC 2.0 ROM Functions
 

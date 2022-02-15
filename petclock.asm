@@ -193,6 +193,9 @@ endOfBasic:     .word 00                            ;   the +7 expression above,
 ;-----------------------------------------------------------------------------------
 
 start:          cld
+.if C64
+                jsr InitCIAClock
+.endif
                 jsr InitVariables       ; Since we can be in ROM, zero stuff out
                 jsr LoadClock
 MainLoop:
@@ -1136,10 +1139,10 @@ GetDeviceStatus:
                 jsr SECND               ; send secondary address
                 ldy #$00
 :                
-	            jsr ACPTR       	    ; read byte from IEEE bus
-	            cmp #CR				    ; last byte = CR?
-	            beq @done
-	            sta DevResponse, y
+                jsr ACPTR               ; read byte from IEEE bus
+                cmp #CR                 ; last byte = CR?
+                beq @done
+                sta DevResponse, y
                 iny
                 jmp :-                  ; branch always
 @done:          lda #$00
@@ -1153,11 +1156,55 @@ GetDeviceStatus:
 .if C64         ; Only C64 has 6526 CIAs
 
 ;----------------------------------------------------------------------------
+; InitCIAClock - Initialize CIA clock to correct external frequency (50/60Hz)
+;----------------------------------------------------------------------------
+
+InitCIAClock:
+                lda CIA2_CRB
+                and #$7f                ; Set CIA2 TOD clock, not alarm
+                sta CIA2_CRB
+
+                sei
+                lda #$00
+                sta CIA2_TENTHS         ; Start CIA2 TOD clock
+@tickloop:      cmp CIA2_TENTHS         ; Wait until tenths value changes
+                beq @tickloop
+
+                lda #$ff                ; Count down from $ffff (65535)
+                sta CIA2_TA_LO          ; Use timer A
+                sta CIA2_TA_HI
+            
+                lda #%00010001          ; Set TOD to 60Hz mode and start the
+                sta CIA2_CRA            ;   timer.
+
+                lda CIA2_TENTHS
+@countloop:     cmp CIA2_TENTHS         ; Wait until tenths value changes
+                beq @countloop
+
+                ldx CIA2_TA_HI
+                cli
+
+                lda CIA1_CRA
+
+                cpx #$51                ; If timer HI > 51, we're at 60Hz
+                bcs @pick60hz
+
+                ora #$80                ; Configure CIA1 TOD to run at 50Hz
+                bne @setfreq
+
+@pick60hz:      and #$7f                ; Configure CIA1 TOD to run at 50Hz
+
+@setfreq:       sta CIA1_CRA
+
+                rts
+
+
+;----------------------------------------------------------------------------
 ; ReadCIAClock - Read CIA1's clock into our clock structure
 ;----------------------------------------------------------------------------
 
 ReadCIAClock:
-                ldx CIA_HOURS           ; We start with hours; this also triggers
+                ldx CIA1_HOURS           ; We start with hours; this also triggers
                 txa                     ;   the CIA TOD clock latch.
                 and #$80                ; Isolate PM bit, and rotate it into the
                 clc                     ;   rightmost bit. Then store it in our
@@ -1170,17 +1217,17 @@ ReadCIAClock:
                 stx HourTens
                 sty HourDigits
 
-                lda CIA_MINUTES         ; Read minutes, convert and store
+                lda CIA1_MINUTES         ; Read minutes, convert and store
                 jsr BCDToChars
                 stx MinTens
                 sty MinDigits
 
-                lda CIA_SECONDS         ; Read seconds, convert and store
+                lda CIA1_SECONDS         ; Read seconds, convert and store
                 jsr BCDToChars
                 stx SecTens
                 sty SecDigits
 
-                lda CIA_TENTHS          ; Load tenths of seconds. This also unlatches
+                lda CIA1_TENTHS          ; Load tenths of seconds. This also unlatches
                 adc #'0'                ;   the TOD clock.
                 sta Tenths
 
@@ -1218,9 +1265,9 @@ BCDToChars:
 ;----------------------------------------------------------------------------
 
 WriteCIAClock:
-                lda CIA_CRB             ; Clear CRB7 to set the TOD, not an alarm
+                lda CIA1_CRB             ; Clear CRB7 to set the TOD, not an alarm
                 and #$7f
-                sta CIA_CRB
+                sta CIA1_CRB
 
                 ldx HourTens             ; Load hour tens and digits chars, convert them
                 ldy HourDigits           ;   to BCD.
@@ -1244,21 +1291,21 @@ WriteCIAClock:
                 sty zptmp               ; Store our PM bit XOR bitmask and use it
                 eor zptmp
 
-                sta CIA_HOURS           ; Write our calculated hours value to the CIA clock
+                sta CIA1_HOURS           ; Write our calculated hours value to the CIA clock
 
                 ldx MinTens             ; Load minute tens and digits chars, convert them
                 ldy MinDigits           ;   to BCD, and write to CIA clock.
                 jsr CharsToBCD
-                sta CIA_MINUTES
+                sta CIA1_MINUTES
 
                 ldx SecTens             ; Load second tens and digits chars, convert them
                 ldy SecDigits           ;   to BCD, and write to CIA clock.
                 jsr CharsToBCD
-                sta CIA_SECONDS
+                sta CIA1_SECONDS
 
                 lda Tenths              ; Set tenths of seconds. This also starts the 
                 sbc #'0'                ;   CIA TOD clock.
-                sta CIA_TENTHS
+                sta CIA1_TENTHS
 
                 rts
 
