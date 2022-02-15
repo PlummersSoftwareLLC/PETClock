@@ -129,6 +129,22 @@ DeviceBufferEnd:
 .assert (DeviceBufferEnd - DeviceBufferStart) = 23, error   ; Verify length of struct matches fixed RTC format
 .assert * <= SCRATCH_END, error                             ; Make sure we haven't run off the end of the buffer
 
+; Macros ---------------------------------------------------------------------------
+
+.macro          ChangeClock firstProc, secondProc
+.if C64
+                jsr ReadCIAClock
+.endif
+.ifnblank firstProc
+                jsr firstProc         ; Invoke first procedure
+.endif
+.ifnblank secondProc
+                jsr secondProc        ; Invoke second procedure
+.endif
+.if C64
+                jsr WriteCIAClock
+.endif
+.endmacro
 
 ; Start of Binary -------------------------------------------------------------------
 
@@ -212,59 +228,32 @@ notEscape:
 .endif
                 cmp #$5A
                 bne @notZero
-.if C64
-                jsr ReadCIAClock
-.endif
-                jsr ZeroSeconds         ; Z pressed, set seconds to 0
-.if C64
-                jsr WriteCIAClock
-.endif
+                ; Z pressed, set seconds to 0
+                ChangeClock ZeroSeconds
                 jmp InnerLoop
 
 @notZero:       cmp #$48
                 bne @notHour
-.if C64
-                jsr ReadCIAClock
-.endif
-                jsr IncrementHour       ; H pressed, increment hour
-.if C64
-                jsr WriteCIAClock
-.endif
+                ; H pressed, increment hour
+                ChangeClock IncrementHour
                 jmp MainLoop
 
 @notHour:       cmp #$C8
                 bne @notHourDn
-.if C64
-                jsr ReadCIAClock
-.endif
-                jsr DecrementHour       ; SHIFT-H pressed, decrement hour
-.if C64
-                jsr WriteCIAClock
-.endif
+                ; SHIFT-H pressed, decrement hour
+                ChangeClock DecrementHour
                 jmp MainLoop
 
 @notHourDn:     cmp #$4D
                 bne @notMin
-.if C64
-                jsr ReadCIAClock
-.endif
-                jsr IncrementMinute     ; M pressed, increment minute
-                jsr ZeroSeconds
-.if C64
-                jsr WriteCIAClock
-.endif
+                ; M pressed, increment minute
+                ChangeClock IncrementMinute, ZeroSeconds
                 jmp MainLoop
 
 @notMin:        cmp #$CD
                 bne @notMinDn
-.if C64
-                jsr ReadCIAClock
-.endif
-                jsr DecrementMinute     ; SHIFT-M pressed, decrement minute
-                jsr ZeroSeconds
-.if C64
-                jsr WriteCIAClock
-.endif
+                ; SHIFT-M pressed, decrement minute
+                ChangeClock DecrementMinute, ZeroSeconds
                 jmp MainLoop
 
 @notMinDn:      cmp #$53
@@ -926,19 +915,19 @@ UpdateJiffyClock:
                 cpx #0                  ; No seconds? Skip adding.
                 beq @addtenths
 
+                ldy #SECOND_JIFFIES
+                jsr Multiply
+
                 clc
-@secloop:       lda #SECOND_JIFFIES     ; Perform an add and extend for carry
+                lda resultLo            ; Add result and extend for carry
                 adc remainder
                 sta remainder
-                lda #0
+                lda resultHi
                 adc remainder+1
                 sta remainder+1
                 lda #0
                 adc remainder+2
                 sta remainder+2
-
-                dex                     ; Decrease second count and continue if necessary
-                bne @secloop
 
 @addtenths:     lda Tenths
                 cmp #'0'
@@ -947,7 +936,7 @@ UpdateJiffyClock:
                 sec
                 sbc #'0'
                 tax
-                ldy 6
+                ldy #SECOND_JIFFIES/10
                 jsr Multiply
 
                 clc
@@ -1163,50 +1152,51 @@ ReadCIAClock:
                 rol                     ;   PM flag.
                 rol
                 sta PmFlag
-                txa                     ; Copy CIA hours value back into A.
-                and #$0f                ; Isolate the digits BCD nibble, convert it
-                adc #'0'                ;   into the digit char and store it.
-                sta HourDigits
-                txa                     ; Copy CIA hours value back into A.
-                and #$10                ; Isolate the tens BCD nibble (bit), rotate
-                lsr                     ;   it right, convert to char and store it. 
-                lsr
-                lsr
-                lsr
-                adc #'0'
-                sta HourTens
+                txa                     ; Copy CIA hours value back into A, mask
+                and #$7f                ;   out PM bit, convert and store.
+                jsr BCDToChars
+                stx HourTens
+                sty HourDigits
 
-                ldx CIA_MINUTES         ; Read minutes next.
-                txa 
-                and #$0f                ; Isolate the digits BCD nibble, convert it
-                adc #'0'                ;   into the digit char and store it.
-                sta MinDigits
-                txa                     ; Copy CIA minutes value back into A.
-                and #$70                ; Isolate the tens BCD nibble (3 bits), rotate
-                lsr                     ;   it right, convert to char and store it. 
-                lsr
-                lsr
-                lsr
-                adc #'0'
-                sta MinTens
+                lda CIA_MINUTES         ; Read minutes, convert and store
+                jsr BCDToChars
+                stx MinTens
+                sty MinDigits
 
-                ldx CIA_SECONDS         ; Read seconds next.
-                txa 
-                and #$0f                ; Isolate the digits BCD nibble, convert it
-                adc #'0'                ;   into the digit char and store it.
-                sta SecDigits
-                txa                     ; Copy CIA minutes value back into A.
-                and #$70                ; Isolate the tens BCD nibble (3 bits), rotate
-                lsr                     ;   it right, convert to char and store it. 
-                lsr
-                lsr
-                lsr
-                adc #'0'
-                sta SecTens
+                lda CIA_SECONDS         ; Read seconds, convert and store
+                jsr BCDToChars
+                stx SecTens
+                sty SecDigits
 
                 lda CIA_TENTHS          ; Load tenths of seconds. This also unlatches
                 adc #'0'                ;   the TOD clock.
                 sta Tenths
+
+                rts
+
+
+;-----------------------------------------------------------------------------------
+; BCDToChars - Convert BCD value to two decimal characters
+;-----------------------------------------------------------------------------------
+;      IN  A:  BCD value to split and convert
+;      OUT X:  tens character
+;      OUT Y:  digit character
+;-----------------------------------------------------------------------------------
+
+BCDToChars:
+                tax
+                and #$0f                ; Isolate the digits BCD nibble, convert it
+                clc                     ;   into the digit char and put it in Y.
+                adc #'0'
+                tay
+                txa                     ; Copy BCD value back into A, rotate the left
+                lsr                     ;   nibble right, convert to char and put it
+                lsr                     ;   in X.
+                lsr
+                lsr
+                clc
+                adc #'0'
+                tax
 
                 rts
 
@@ -1220,19 +1210,9 @@ WriteCIAClock:
                 and #$7f
                 sta CIA_CRB
 
-                lda HourTens            ; Load hour tens char, convert to decimal 
-                sec                     ;   digit, rotate it into the left nibble,
-                sbc #'0'                ;   and save it in a temp variable.
-                asl
-                asl
-                asl
-                asl
-                sta zptmp
-
-                lda HourDigits          ; Load hours digits char, convert to decimal
-                sec                     ;   digit, OR it with the tens nibble and
-                sbc #'0'                ;   save it in temp var.
-                ora zptmp
+                ldx HourTens             ; Load hour tens and digits chars, convert them
+                ldy HourDigits           ;   to BCD.
+                jsr CharsToBCD
 
                 ldy #0                  ; If the hour is 12, prepare to flip the PM
                 cmp #$12                ;   bit on the CIA hour value. For some reason,
@@ -1252,9 +1232,35 @@ WriteCIAClock:
                 sty zptmp               ; Store our PM bit XOR bitmask and use it
                 eor zptmp
 
-                sta CIA_HOURS           ; Save our calculated hours value
+                sta CIA_HOURS           ; Write our calculated hours value to the CIA clock
 
-                lda MinTens             ; Load minute tens char, convert to decimal 
+                ldx MinTens             ; Load minute tens and digits chars, convert them
+                ldy MinDigits           ;   to BCD, and write to CIA clock.
+                jsr CharsToBCD
+                sta CIA_MINUTES
+
+                ldx SecTens             ; Load second tens and digits chars, convert them
+                ldy SecDigits           ;   to BCD, and write to CIA clock.
+                jsr CharsToBCD
+                sta CIA_SECONDS
+
+                lda Tenths              ; Set tenths of seconds. This also starts the 
+                sbc #'0'                ;   CIA TOD clock.
+                sta CIA_TENTHS
+
+                rts
+
+
+;-----------------------------------------------------------------------------------
+; CharsToBCD - Convert two decimal characters to BCD value
+;-----------------------------------------------------------------------------------
+;      IN  X:  tens character
+;      IN  Y:  digit character
+;      OUT A:  BCD value
+;-----------------------------------------------------------------------------------
+
+CharsToBCD:
+                txa                     ; Put tens char in A, convert to decimal 
                 sec                     ;   digit, rotate it into the left nibble,
                 sbc #'0'                ;   and save it in temp var.
                 asl
@@ -1263,29 +1269,10 @@ WriteCIAClock:
                 asl
                 sta zptmp
 
-                lda MinDigits           ; Load minute digits char, convert to decimal
-                sec                     ;   digit, OR it with tens nibble and write it
-                sbc #'0'                ;   to the CIA.
+                tya                     ; Put digits char in A, convert to decimal
+                sec                     ;   digit, and OR it with tens nibble.
+                sbc #'0'
                 ora zptmp
-                sta CIA_MINUTES
-
-                lda SecTens             ; Load second tens char, convert to decimal 
-                sbc #'0'                ;   digit, rotate it into the left nibble,
-                asl                     ;   and save it in temp var.
-                asl
-                asl
-                asl
-                sta zptmp
-
-                lda SecDigits           ; Load second digits char, convert to decimal
-                sec                     ;   digit, OR it with tens nibble and write it
-                sbc #'0'                ;   to the CIA.
-                ora zptmp
-                sta CIA_SECONDS
-
-                lda Tenths              ; Set tenths of seconds. This also starts the 
-                sbc #'0'                ;   CIA TOD clock.
-                sta CIA_TENTHS
 
                 rts
 
