@@ -1,10 +1,10 @@
 ;-----------------------------------------------------------------------------------
-; Large Text Clock for CBM/PET 6502
+; Large Text Clock for CBM/PET and C64 6502
 ;-----------------------------------------------------------------------------------
 ; (c) Dave Plummer, 12/26/2016. If you can read it, you can use it! No warranties!
 ;                   12/26/2021. Ported to the cc65 assembler package (davepl)
 ;                   01/19/2022. Run clock based on jiffy/RTC time (rbergen)
-;                   02/13/2022. Add C64 support
+;                   02/13/2022. Add C64 support (rbergen)
 ;-----------------------------------------------------------------------------------
 ; Environment: xpet -fs9 d:\OneDrive\PET\source\ -device9 1
 ;            : PET 2001
@@ -378,7 +378,7 @@ UpdateClockPos:
                 sta ClockCount
                 sta ClockCount+1
 
-                lda TIME
+                lda TIME+2
                 and #3
                 sta ClockXPos
 
@@ -530,9 +530,9 @@ SetSeconds:
 writeJiffy:     ldy #0                  ; Highest byte is always 0
 
                 sei                     ; Write jiffy timer with interrupts disabled.
-                sty TIME-2
-                stx TIME-1
-                sta TIME
+                sty TIME
+                stx TIME+1
+                sta TIME+2
                 cli
 
                 rts
@@ -644,9 +644,9 @@ TwoInTens:      dec HourTens            ; If it's 2X:XX we go back 12 hours
 
 LoadJiffyClock:
                 sei                     ; Load jiffy clock with interrupts disabled
-                lda TIME
-                ldx TIME-1
-                ldy TIME-2
+                lda TIME+2
+                ldx TIME+1
+                ldy TIME
                 cli
 
                 sta zptmp               ; We put the low byte in the result variable
@@ -931,9 +931,9 @@ UpdateJiffyClock:
                 ldy remainder+2         ;   duration possible.
 
                 sei
-                sty TIME-2
-                stx TIME-1
-                sta TIME
+                sty TIME
+                stx TIME+1
+                sta TIME+2
                 cli
 
                 rts
@@ -955,14 +955,14 @@ UpdateJiffyClock:
                 clc
 
                 sei                     ; Add the seconds and change in the jiffy timer
-                adc TIME                ;   to what we calculated and store the result
-                sta TIME                ;   as the new value of the jiffy timer.
+                adc TIME+2              ;   to what we calculated and store the result
+                sta TIME+2              ;   as the new value of the jiffy timer.
                 txa
-                adc TIME-1
-                sta TIME-1
+                adc TIME+1
+                sta TIME+1
                 tya
-                adc TIME-2
-                sta TIME-2
+                adc TIME
+                sta TIME
                 cli
 
 @done:          rts
@@ -1008,9 +1008,9 @@ UpdateClock:
 
                 ; The numbers between brackets are the machine cycles per instruction
                 sei                     ; Load jiffy timer values with interrupts   (2)
-                ldy TIME-2              ;   disabled. Weirdly, the three bytes of   (3)
-                ldx TIME-1              ;   that value are stored big-endian.       (3)
-                lda TIME                ;                                           (3)
+                ldy TIME                ;   disabled. Weirdly, the three bytes of   (3)
+                ldx TIME+1              ;   that value are stored big-endian.       (3)
+                lda TIME+2              ;                                           (3)
                 cli                     ;                                           (2)
 
                 sec                     ; Subtract the number of jiffies per minute (2)
@@ -1029,9 +1029,9 @@ UpdateClock:
                                         ;   temp value we saved earlier into A.
 
                 sei                     ; Save updated jiffy timer values with      (2)
-                sty TIME-2              ;   interrupts disabled.                    (3)
-                stx TIME-1              ;                                           (3)
-                sta TIME                ;                                           (3)
+                sty TIME                ;   interrupts disabled.                    (3)
+                stx TIME+1              ;                                           (3)
+                sta TIME+2              ;                                           (3)
                 cli                     ;                                           (2)
                 ;                                                                 +----
                 ; Estimated jiffy timer drift in μs per applied clock update:       50
@@ -1118,6 +1118,14 @@ GetDeviceStatus:
 
 ;----------------------------------------------------------------------------
 ; InitCIAClock - Initialize CIA clock to correct external frequency (50/60Hz)
+;
+; This routine figures out whether the C64 is connected to a 50Hz or 60Hz
+; external frequency source - that traditionally being the power grid the
+; AC adapter is connected to. It needs to know this to make the CIA time of 
+; day clock run at the right speed; getting it wrong makes the clock 20% off.
+; This routine was effectively sourced from the following web page:
+; https://codebase64.org/doku.php?id=base:efficient_tod_initialisation
+; Credits for it go to Silver Dream.
 ;----------------------------------------------------------------------------
 
 InitCIAClock:
