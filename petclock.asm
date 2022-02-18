@@ -18,47 +18,8 @@
 ; The hours can be specified in 24-hour format; they will be converted to 12-hour
 ; format, as is the time read from the petSD+.
 
-.INCLUDE "settings.inc"
-
-; System Locations ------------------------------------------------------------------
-
-.ifndef C64
-    C64         = 0
-.endif
-
-.ifndef PET
-    PET         = 0
-.endif
-
-.if (.not (PET .xor C64))
-    .fatal "Define exactly one of PET or C64 to equal 1."
-.endif
-
-.if (C64 .and PETSDPLUS)
-    .fatal "petSD+ is currently not supported on the C64."
-.endif
-
-.INCLUDE "common.inc"
-
-.if C64
-    .INCLUDE "c64.inc"
-    .INCLUDE "kernal.inc"
-    .if EPROM
-        BASE    = $8000     ; Open C64 ROM space (not re)
-    .else
-        BASE    = $0801     ; C64 Start of BASIC
-    .endif
-.endif
-
-.if PET
-    .INCLUDE "pet.inc"
-    .INCLUDE "petbasic4.inc"
-    .if EPROM
-        BASE    = $B000     ; Open PET ROM space
-    .else
-        BASE    = $0401     ; PET Start of BASIC
-    .endif
-.endif
+.include "settings.inc"
+.include "petclock.inc" 
 
 ; Our Definitions -------------------------------------------------------------------
 
@@ -301,9 +262,9 @@ ExitApp:
 
 .if C64
                 lda BorderColor         ; Restore colors to how we found them
-                sta BORDER_COLOR
+                sta VIC_BORDERCOLOR
                 lda BkgndColor
-                sta BKGND_COLOR
+                sta VIC_BG_COLOR0
                 lda TextColor
                 sta TEXT_COLOR
 .endif
@@ -343,16 +304,16 @@ InitVariables:  ldx #ScratchEnd-ScratchStart
                 sta ShowAM
 
 .if C64
-                lda BORDER_COLOR            ; Save current colors for later
+                lda VIC_BORDERCOLOR         ; Save current colors for later
                 sta BorderColor
-                lda BKGND_COLOR
+                lda VIC_BG_COLOR0
                 sta BkgndColor
                 lda TEXT_COLOR
                 sta TextColor
 
-                lda #BLACK                  ; Set colors to COLOR on black
-                sta BORDER_COLOR
-                sta BKGND_COLOR
+                lda #COLOR_BLACK            ; Set colors to COLOR on black
+                sta VIC_BORDERCOLOR
+                sta VIC_BG_COLOR0
                 lda #COLOR
                 sta CurColor
                 sta TEXT_COLOR
@@ -417,7 +378,7 @@ UpdateClockPos:
                 sta ClockCount
                 sta ClockCount+1
 
-                lda JIFFY_TIMER
+                lda TIME
                 and #3
                 sta ClockXPos
 
@@ -569,9 +530,9 @@ SetSeconds:
 writeJiffy:     ldy #0                  ; Highest byte is always 0
 
                 sei                     ; Write jiffy timer with interrupts disabled.
-                sty JIFFY_TIMER-2
-                stx JIFFY_TIMER-1
-                sta JIFFY_TIMER
+                sty TIME-2
+                stx TIME-1
+                sta TIME
                 cli
 
                 rts
@@ -683,9 +644,9 @@ TwoInTens:      dec HourTens            ; If it's 2X:XX we go back 12 hours
 
 LoadJiffyClock:
                 sei                     ; Load jiffy clock with interrupts disabled
-                lda JIFFY_TIMER
-                ldx JIFFY_TIMER-1
-                ldy JIFFY_TIMER-2
+                lda TIME
+                ldx TIME-1
+                ldy TIME-2
                 cli
 
                 sta zptmp               ; We put the low byte in the result variable
@@ -970,9 +931,9 @@ UpdateJiffyClock:
                 ldy remainder+2         ;   duration possible.
 
                 sei
-                sty JIFFY_TIMER-2
-                stx JIFFY_TIMER-1
-                sta JIFFY_TIMER
+                sty TIME-2
+                stx TIME-1
+                sta TIME
                 cli
 
                 rts
@@ -994,14 +955,14 @@ UpdateJiffyClock:
                 clc
 
                 sei                     ; Add the seconds and change in the jiffy timer
-                adc JIFFY_TIMER         ;   to what we calculated and store the result
-                sta JIFFY_TIMER         ;   as the new value of the jiffy timer.
+                adc TIME                ;   to what we calculated and store the result
+                sta TIME                ;   as the new value of the jiffy timer.
                 txa
-                adc JIFFY_TIMER-1
-                sta JIFFY_TIMER-1
+                adc TIME-1
+                sta TIME-1
                 tya
-                adc JIFFY_TIMER-2
-                sta JIFFY_TIMER-2
+                adc TIME-2
+                sta TIME-2
                 cli
 
 @done:          rts
@@ -1047,9 +1008,9 @@ UpdateClock:
 
                 ; The numbers between brackets are the machine cycles per instruction
                 sei                     ; Load jiffy timer values with interrupts   (2)
-                ldy JIFFY_TIMER-2       ;   disabled. Weirdly, the three bytes of   (3)
-                ldx JIFFY_TIMER-1       ;   that value are stored big-endian.       (3)
-                lda JIFFY_TIMER         ;                                           (3)
+                ldy TIME-2              ;   disabled. Weirdly, the three bytes of   (3)
+                ldx TIME-1              ;   that value are stored big-endian.       (3)
+                lda TIME                ;                                           (3)
                 cli                     ;                                           (2)
 
                 sec                     ; Subtract the number of jiffies per minute (2)
@@ -1068,9 +1029,9 @@ UpdateClock:
                                         ;   temp value we saved earlier into A.
 
                 sei                     ; Save updated jiffy timer values with      (2)
-                sty JIFFY_TIMER-2       ;   interrupts disabled.                    (3)
-                stx JIFFY_TIMER-1       ;                                           (3)
-                sta JIFFY_TIMER         ;                                           (3)
+                sty TIME-2              ;   interrupts disabled.                    (3)
+                stx TIME-1              ;                                           (3)
+                sta TIME                ;                                           (3)
                 cli                     ;                                           (2)
                 ;                                                                 +----
                 ; Estimated jiffy timer drift in μs per applied clock update:       50
@@ -1166,22 +1127,22 @@ InitCIAClock:
 
                 sei
                 lda #$00
-                sta CIA2_TENTHS         ; Start CIA2 TOD clock
-@tickloop:      cmp CIA2_TENTHS         ; Wait until tenths value changes
+                sta CIA2_TOD10          ; Start CIA2 TOD clock
+@tickloop:      cmp CIA2_TOD10          ; Wait until tenths value changes
                 beq @tickloop
 
                 lda #$ff                ; Count down from $ffff (65535)
-                sta CIA2_TA_LO          ; Use timer A
-                sta CIA2_TA_HI
+                sta CIA2_TA             ; Use timer A
+                sta CIA2_TA+1
             
                 lda #%00010001          ; Set TOD to 60Hz mode and start the
                 sta CIA2_CRA            ;   timer.
 
-                lda CIA2_TENTHS
-@countloop:     cmp CIA2_TENTHS         ; Wait until tenths value changes
+                lda CIA2_TOD10
+@countloop:     cmp CIA2_TOD10          ; Wait until tenths value changes
                 beq @countloop
 
-                ldx CIA2_TA_HI
+                ldx CIA2_TA+1
                 cli
 
                 lda CIA1_CRA
@@ -1204,7 +1165,7 @@ InitCIAClock:
 ;----------------------------------------------------------------------------
 
 ReadCIAClock:
-                ldx CIA1_HOURS          ; We start with hours; this also triggers
+                ldx CIA1_TODHR          ; We start with hours; this also triggers
                 txa                     ;   the CIA TOD clock latch.
                 and #$80                ; Isolate PM bit, and rotate it into the
                 clc                     ;   rightmost bit. Then store it in our
@@ -1217,17 +1178,17 @@ ReadCIAClock:
                 stx HourTens
                 sty HourDigits
 
-                lda CIA1_MINUTES        ; Read minutes, convert and store
+                lda CIA1_TODMIN         ; Read minutes, convert and store
                 jsr BCDToChars
                 stx MinTens
                 sty MinDigits
 
-                lda CIA1_SECONDS        ; Read seconds, convert and store
+                lda CIA1_TODSEC         ; Read seconds, convert and store
                 jsr BCDToChars
                 stx SecTens
                 sty SecDigits
 
-                lda CIA1_TENTHS         ; Load tenths of seconds. This also unlatches
+                lda CIA1_TOD10          ; Load tenths of seconds. This also unlatches
                 adc #'0'                ;   the TOD clock.
                 sta Tenths
 
@@ -1291,21 +1252,21 @@ WriteCIAClock:
                 sty zptmp               ; Store our PM bit XOR bitmask and use it
                 eor zptmp
 
-                sta CIA1_HOURS          ; Write our calculated hours value to the CIA clock
+                sta CIA1_TODHR          ; Write our calculated hours value to the CIA clock
 
                 ldx MinTens             ; Load minute tens and digits chars, convert them
                 ldy MinDigits           ;   to BCD, and write to CIA clock.
                 jsr CharsToBCD
-                sta CIA1_MINUTES
+                sta CIA1_TODMIN
 
                 ldx SecTens             ; Load second tens and digits chars, convert them
                 ldy SecDigits           ;   to BCD, and write to CIA clock.
                 jsr CharsToBCD
-                sta CIA1_SECONDS
+                sta CIA1_TODSEC
 
                 lda Tenths              ; Set tenths of seconds. This also starts the 
                 sbc #'0'                ;   CIA TOD clock.
-                sta CIA1_TENTHS
+                sta CIA1_TOD10
 
                 rts
 
