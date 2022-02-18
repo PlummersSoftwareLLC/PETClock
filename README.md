@@ -45,7 +45,6 @@ With the cc65 toolkit installed and in your PATH, you can build the application 
   cl65 -o petclock.prg --asm-include-dir include --asm-define C64=1 -t none petclock.asm
   ```
 
-
 ## Loading and running
 
 Assuming the petclock.prg file is on a disk in device 8, the clock can be loaded using the following command:

@@ -129,6 +129,34 @@ DeviceBufferEnd:
 .assert (DeviceBufferEnd - DeviceBufferStart) = 23, error   ; Verify length of struct matches fixed RTC format
 .assert * <= SCRATCH_END, error                             ; Make sure we haven't run off the end of the buffer
 
+; Macros ---------------------------------------------------------------------------
+
+;-----------------------------------------------------------------------------------
+; ChangeClock - Call routine(s) that change the clock values. The actual routine
+;               call(s) are decorated with machine-specific calls, where needed.
+;               Technically, both parameters to the macro are optional: any empty
+;               parater value is skipped. In the practical sense, using this macro
+;               without at least one parameter is meaningless. 
+;-----------------------------------------------------------------------------------
+;   firstProc:  Address of first routine to call
+;  secondProc:  Address of second routine to call
+;-----------------------------------------------------------------------------------
+
+.macro          ChangeClock firstProc, secondProc
+.if C64
+                jsr ReadCIAClock
+.endif
+.ifnblank firstProc
+                jsr firstProc         ; Invoke first routine
+.endif
+.ifnblank secondProc
+                jsr secondProc        ; Invoke second routine
+.endif
+.if C64
+                jsr WriteCIAClock
+.endif
+.endmacro
+
 
 ; Start of Binary -------------------------------------------------------------------
 
@@ -165,6 +193,9 @@ endOfBasic:     .word 00                            ;   the +7 expression above,
 ;-----------------------------------------------------------------------------------
 
 start:          cld
+.if C64
+                jsr InitCIAClock
+.endif
                 jsr InitVariables       ; Since we can be in ROM, zero stuff out
                 jsr LoadClock
 MainLoop:
@@ -182,7 +213,7 @@ InnerLoop:      jsr UpdateClockPos      ; Carry will be clear when its time to c
 
                 cmp #$03
                 bne notEscape
-                beq ExitApp             ; Escape pressed, go to exit
+                jmp ExitApp             ; Escape pressed, go to exit
 
 notEscape:
 
@@ -212,39 +243,46 @@ notEscape:
 .endif
                 cmp #$5A
                 bne @notZero
-                jsr ZeroSeconds         ; Z pressed, set seconds to 0
+                ; Z pressed, set seconds to 0
+                ChangeClock ZeroSeconds
                 jmp InnerLoop
 
 @notZero:       cmp #$48
                 bne @notHour
-                jsr IncrementHour       ; H pressed, increment hour
+                ; H pressed, increment hour
+                ChangeClock IncrementHour
                 jmp MainLoop
 
 @notHour:       cmp #$C8
                 bne @notHourDn
-                jsr DecrementHour       ; SHIFT-H pressed, decrement hour
+                ; SHIFT-H pressed, decrement hour
+                ChangeClock DecrementHour
                 jmp MainLoop
 
 @notHourDn:     cmp #$4D
                 bne @notMin
-                jsr IncrementMinute     ; M pressed, increment minute
-                jsr ZeroSeconds
+                ; M pressed, increment minute
+                ChangeClock IncrementMinute, ZeroSeconds
                 jmp MainLoop
 
 @notMin:        cmp #$CD
                 bne @notMinDn
-                jsr DecrementMinute     ; SHIFT-M pressed, decrement minute
-                jsr ZeroSeconds
+                ; SHIFT-M pressed, decrement minute
+                ChangeClock DecrementMinute, ZeroSeconds
                 jmp MainLoop
 
 @notMinDn:      cmp #$53
                 bne @notShowAM
                 jsr ToggleShowAM        ; S pressed, toggle show AM flag
-                bcs MainLoop
-                jmp InnerLoop
+                bcs @tomainloop         ; Perform indirect jump: MainLoop is out
+                jmp InnerLoop           ;   of reach for a direct branch.
+@tomainloop:    jmp MainLoop
 
 @notShowAM:     cmp #$55
                 bne @notUpdate
+.if C64
+                jsr ReadCIAClock
+.endif
                 jmp MainLoop            ; U pressed, update clock now
 
 @notUpdate:     jsr ShowInstructions    ; Any other key shows the help text
@@ -252,6 +290,12 @@ notEscape:
 
 ExitApp:
 .if !PETSDPLUS
+
+    .if C64
+
+                jsr ReadCIAClock        ; Read CIA TOD clock one more time
+    .endif
+
                 jsr UpdateJiffyClock    ; Set jiffy clock to our time
 .endif
 
@@ -485,6 +529,20 @@ ShowBanner:
 ;-----------------------------------------------------------------------------------
 
 ZeroSeconds:
+
+.if C64         ; On the C64, we set the values in our clock structure. These will
+                ;   be applied to the CIA TOD clock by the caller.
+
+                lda #'0'
+                sta SecTens
+                sta SecDigits
+                sta Tenths
+
+                rts
+.endif
+
+.if PET         ; On the PET, we use the jiffy timer for everything
+
                 lda #0
                 ldx #0
                 jmp writeJiffy
@@ -518,6 +576,7 @@ writeJiffy:     ldy #0                  ; Highest byte is always 0
 
                 rts
 
+.endif          ; PET
 
 ;-----------------------------------------------------------------------------------
 ; LoadClock - Sets the current time of day from hardware or the jiffy clock
@@ -544,6 +603,8 @@ LoadClock:
                 sta SecTens
                 lda ClkSecDigits
                 sta SecDigits
+                lda #'0'
+                sta Tenths
                 lda #0
                 sta PmFlag              ; It's AM unless we find otherwise
 
@@ -581,10 +642,18 @@ LoadClock:
                 dec HourDigits
                 dec HourDigits
 
-LoadSeconds:    ldx SecTens
+LoadSeconds:    
+
+.if PET         ; On the PET, we set the jiffy seconds
+                ldx SecTens
                 ldy SecDigits
                 jsr GetCharsValue       ; Convert second digits to value and set
                 jsr SetSeconds          ;   them.
+.endif
+
+.if C64         ; On the C64, we set and start the CIA clock
+                jsr WriteCIAClock
+.endif
 
                 rts
 
@@ -752,8 +821,6 @@ LoadJiffyClock:
 
                 rts
 
-.endif          ; !PETSDPLUS
-
 
 ;-----------------------------------------------------------------------------------
 ; GetDigitChars - Calculate the tens and digits characters of the value in X
@@ -785,6 +852,8 @@ GetDigitChars:
 
                 rts
 
+
+.endif          ; !PETSDPLUS
 
 ;-----------------------------------------------------------------------------------
 ; UpdateJiffyClock - Sets the jiffy clock to the time we say it is
@@ -835,7 +904,7 @@ UpdateJiffyClock:
                 jsr GetCharsValue       ; Convert minute characters to value
 
                 cpx #0                  ; No minutes? Skip adding.
-                beq @addjiffy
+                beq @addseconds
 
                 clc
 @mmloop:        lda #<MINUTE_JIFFIES    ; Perform a two-byte add and extend for carry
@@ -851,7 +920,68 @@ UpdateJiffyClock:
                 dex                     ; Decrease minute count and continue if necessary
                 bne @mmloop
 
-@addjiffy:      lda remainder           ; Check if we have anything to add to current
+@addseconds:    
+                
+.if C64         ; On the C64, use the seconds and tenths in our clock structure
+                ldx SecTens
+                ldy SecDigits
+                jsr GetCharsValue       ; Convert second characters to value
+
+                cpx #0                  ; No seconds? Skip adding.
+                beq @addtenths
+
+                ldy #SECOND_JIFFIES
+                jsr Multiply
+
+                clc
+                lda resultLo            ; Add result and extend for carry
+                adc remainder
+                sta remainder
+                lda resultHi
+                adc remainder+1
+                sta remainder+1
+                lda #0
+                adc remainder+2
+                sta remainder+2
+
+@addtenths:     lda Tenths
+                cmp #'0'
+                beq @writejiffy
+
+                sec
+                sbc #'0'
+                tax
+                ldy #SECOND_JIFFIES/10
+                jsr Multiply
+
+                clc
+                lda resultLo
+                adc remainder
+                sta remainder
+                lda #0
+                adc remainder+1
+                sta remainder+1
+                lda #0
+                adc remainder+2
+                sta remainder+2
+
+@writejiffy:    lda remainder           ; Load jiffies in registers, so we can keep 
+                ldx remainder+1         ;   the interrupts disabled for the shortest 
+                ldy remainder+2         ;   duration possible.
+
+                sei
+                sty JIFFY_TIMER-2
+                stx JIFFY_TIMER-1
+                sta JIFFY_TIMER
+                cli
+
+                rts
+
+.endif          ; C64
+
+.if PET         ; Use the seconds and fraction jiffies that are in the jiffy timer
+
+                lda remainder           ; Check if we have anything to add to current
                 ora remainder+1         ;   jiffy. This is true unless it is midnight.
                 ora remainder+2
 
@@ -876,6 +1006,7 @@ UpdateJiffyClock:
 
 @done:          rts
 
+.endif          ; PET
 
 ;-----------------------------------------------------------------------------------
 ;  GetCharsValue - Convert tens and digits character to combined value
@@ -911,6 +1042,9 @@ GetCharsValue:
 ; UpdateClock - Updates the clock (minutes), if a minute has passed
 ;-----------------------------------------------------------------------------------
 UpdateClock:
+
+.if PET         ; On the PET, we use the jiffy timer to find when a minute has passed
+
                 ; The numbers between brackets are the machine cycles per instruction
                 sei                     ; Load jiffy timer values with interrupts   (2)
                 ldy JIFFY_TIMER-2       ;   disabled. Weirdly, the three bytes of   (3)
@@ -944,6 +1078,13 @@ UpdateClock:
                 jmp IncrementMinute     ; Increment the minute count
 
 @noupdate:      rts
+
+.endif          ; PET
+
+.if C64         ; Life is simpler on the C64: the CIA TOD clock has accurate time
+
+                jmp ReadCIAClock
+.endif 
 
 
 .if PETSDPLUS   ; SendCommand and GetDeviceStatus are only needed for petSD+
@@ -998,10 +1139,10 @@ GetDeviceStatus:
                 jsr SECND               ; send secondary address
                 ldy #$00
 :                
-	            jsr ACPTR       	    ; read byte from IEEE bus
-	            cmp #CR				    ; last byte = CR?
-	            beq @done
-	            sta DevResponse, y
+                jsr ACPTR               ; read byte from IEEE bus
+                cmp #CR                 ; last byte = CR?
+                beq @done
+                sta DevResponse, y
                 iny
                 jmp :-                  ; branch always
 @done:          lda #$00
@@ -1011,6 +1152,191 @@ GetDeviceStatus:
 
 .endif          ; PETSDPLUS
 
+
+.if C64         ; Only C64 has 6526 CIAs
+
+;----------------------------------------------------------------------------
+; InitCIAClock - Initialize CIA clock to correct external frequency (50/60Hz)
+;----------------------------------------------------------------------------
+
+InitCIAClock:
+                lda CIA2_CRB
+                and #$7f                ; Set CIA2 TOD clock, not alarm
+                sta CIA2_CRB
+
+                sei
+                lda #$00
+                sta CIA2_TENTHS         ; Start CIA2 TOD clock
+@tickloop:      cmp CIA2_TENTHS         ; Wait until tenths value changes
+                beq @tickloop
+
+                lda #$ff                ; Count down from $ffff (65535)
+                sta CIA2_TA_LO          ; Use timer A
+                sta CIA2_TA_HI
+            
+                lda #%00010001          ; Set TOD to 60Hz mode and start the
+                sta CIA2_CRA            ;   timer.
+
+                lda CIA2_TENTHS
+@countloop:     cmp CIA2_TENTHS         ; Wait until tenths value changes
+                beq @countloop
+
+                ldx CIA2_TA_HI
+                cli
+
+                lda CIA1_CRA
+
+                cpx #$51                ; If timer HI > 51, we're at 60Hz
+                bcs @pick60hz
+
+                ora #$80                ; Configure CIA1 TOD to run at 50Hz
+                bne @setfreq
+
+@pick60hz:      and #$7f                ; Configure CIA1 TOD to run at 60Hz
+
+@setfreq:       sta CIA1_CRA
+
+                rts
+
+
+;----------------------------------------------------------------------------
+; ReadCIAClock - Read CIA1's clock into our clock structure
+;----------------------------------------------------------------------------
+
+ReadCIAClock:
+                ldx CIA1_HOURS          ; We start with hours; this also triggers
+                txa                     ;   the CIA TOD clock latch.
+                and #$80                ; Isolate PM bit, and rotate it into the
+                clc                     ;   rightmost bit. Then store it in our
+                rol                     ;   PM flag.
+                rol
+                sta PmFlag
+                txa                     ; Copy CIA hours value back into A, mask
+                and #$7f                ;   out PM bit, convert and store.
+                jsr BCDToChars
+                stx HourTens
+                sty HourDigits
+
+                lda CIA1_MINUTES        ; Read minutes, convert and store
+                jsr BCDToChars
+                stx MinTens
+                sty MinDigits
+
+                lda CIA1_SECONDS        ; Read seconds, convert and store
+                jsr BCDToChars
+                stx SecTens
+                sty SecDigits
+
+                lda CIA1_TENTHS         ; Load tenths of seconds. This also unlatches
+                adc #'0'                ;   the TOD clock.
+                sta Tenths
+
+                rts
+
+
+;-----------------------------------------------------------------------------------
+; BCDToChars - Convert BCD value to two decimal characters
+;-----------------------------------------------------------------------------------
+;      IN  A:  BCD value to split and convert
+;      OUT X:  tens character
+;      OUT Y:  digit character
+;-----------------------------------------------------------------------------------
+
+BCDToChars:
+                tax
+                and #$0f                ; Isolate the digits BCD nibble, convert it
+                clc                     ;   into the digit char and put it in Y.
+                adc #'0'
+                tay
+                txa                     ; Copy BCD value back into A, rotate the left
+                lsr                     ;   nibble right, convert to char and put it
+                lsr                     ;   in X.
+                lsr
+                lsr
+                clc
+                adc #'0'
+                tax
+
+                rts
+
+
+;----------------------------------------------------------------------------
+; WriteCIAClock - Write our clock structure into CIA1's TOD clock
+;----------------------------------------------------------------------------
+
+WriteCIAClock:
+                lda CIA1_CRB             ; Clear CRB7 to set the TOD, not an alarm
+                and #$7f
+                sta CIA1_CRB
+
+                ldx HourTens            ; Load hour tens and digits chars, convert them
+                ldy HourDigits          ;   to BCD.
+                jsr CharsToBCD
+
+                ldy #0                  ; If the hour is 12, prepare to flip the PM
+                cmp #$12                ;   bit on the CIA hour value. For some reason,
+                bne @nottwelve          ;   the CIA inverts the PM bit when the hour 
+                                        ;   is 12, without permission.
+
+                ldy #$80                ; Put XOR bitmask to flip bit 7 in Y
+
+@nottwelve:     sta zptmp
+
+                lda PmFlag              ; Load our PM flag, rotate it into bit 7,
+                clc                     ;   and OR it with what we already have.
+                ror
+                ror
+                ora zptmp
+
+                sty zptmp               ; Store our PM bit XOR bitmask and use it
+                eor zptmp
+
+                sta CIA1_HOURS          ; Write our calculated hours value to the CIA clock
+
+                ldx MinTens             ; Load minute tens and digits chars, convert them
+                ldy MinDigits           ;   to BCD, and write to CIA clock.
+                jsr CharsToBCD
+                sta CIA1_MINUTES
+
+                ldx SecTens             ; Load second tens and digits chars, convert them
+                ldy SecDigits           ;   to BCD, and write to CIA clock.
+                jsr CharsToBCD
+                sta CIA1_SECONDS
+
+                lda Tenths              ; Set tenths of seconds. This also starts the 
+                sbc #'0'                ;   CIA TOD clock.
+                sta CIA1_TENTHS
+
+                rts
+
+
+;-----------------------------------------------------------------------------------
+; CharsToBCD - Convert two decimal characters to BCD value
+;-----------------------------------------------------------------------------------
+;      IN  X:  tens character
+;      IN  Y:  digit character
+;      OUT A:  BCD value
+;-----------------------------------------------------------------------------------
+
+CharsToBCD:
+                txa                     ; Put tens char in A, convert to decimal 
+                sec                     ;   digit, rotate it into the left nibble,
+                sbc #'0'                ;   and save it in temp var.
+                asl
+                asl
+                asl
+                asl
+                sta zptmp
+
+                tya                     ; Put digits char in A, convert to decimal
+                sec                     ;   digit, and OR it with tens nibble.
+                sbc #'0'
+                ora zptmp
+
+                rts
+
+
+.endif          ; C64
 
 ;-----------------------------------------------------------------------------------
 ; Increment/Decrement Hour/Minute
