@@ -24,5 +24,5 @@ jobs:
 
     - name: "Assemble PETClock"
       run: |
-        cc65/bin/cl65 --asm-include-dir include --asm-define PET=1 -t none petclock.asm
-        cc65/bin/cl65 --asm-include-dir include --asm-define C64=1 -t none petclock.asm
+        cc65/bin/cl65 --asm-define PET=1 -t none petclock.asm
+        cc65/bin/cl65 --asm-define C64=1 -t none petclock.asm

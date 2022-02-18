@@ -30,19 +30,19 @@ With the cc65 toolkit installed and in your PATH, you can build the application 
 * If the assembly target is set in `settings.inc`:
 
   ```text
-  cl65 -o petclock.prg --asm-include-dir include -t none petclock.asm
+  cl65 -o petclock.prg -t none petclock.asm
   ```
 
 * For the PET:
 
   ```text
-  cl65 -o petclock.prg --asm-include-dir include --asm-define PET=1 -t none petclock.asm
+  cl65 -o petclock.prg --asm-define PET=1 -t none petclock.asm
   ```
 
 * For the Commodore 64:
 
   ```text
-  cl65 -o petclock.prg --asm-include-dir include --asm-define C64=1 -t none petclock.asm
+  cl65 -o petclock.prg --asm-define C64=1 -t none petclock.asm
   ```
 
 ## Loading and running
