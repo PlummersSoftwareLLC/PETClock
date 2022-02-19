@@ -1,3 +1,10 @@
+;-----------------------------------------------------------------------------------
+; Large Text Clock for CBM/PET and C64 6502
+;-----------------------------------------------------------------------------------
+; (c) Dave Plummer, 2016. If you can read it, you can use it! No warranties!
+; Includes contributions from Rutger van Bergen
+;-----------------------------------------------------------------------------------
+
 ; System selection -----------------------------------------------------------------
 
 .ifndef C64
@@ -22,6 +29,7 @@
     __C64__         = 1
 
     .include "c64.inc"
+
     .if EPROM
         BASE        = $8000     ; Open C64 ROM space (not re)
     .else
@@ -68,7 +76,7 @@
 
 ; System Definition ----------------------------------------------------------------
 
-    SECOND_JIFFIES  = 60   				 ; Number of jiffies in a second
+    SECOND_JIFFIES  = 60                  ; Number of jiffies in a second
     MINUTE_JIFFIES  = 60 * SECOND_JIFFIES ; Number of jiffies in a minute
 
 ;-----------------------------------------------------------------------------------
