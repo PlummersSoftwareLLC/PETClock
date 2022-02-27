@@ -1851,23 +1851,40 @@ CharLowDot:
 .if COLUMNS=80
 Instructions:
                 .literal "                                                                                "
-                .literal "                                                                                "
-                .literal "                             Press RUN/STOP to exit                            ", $00
-
+  .if PETSDPLUS
+                .literal "           H: Hours - M: Minutes - Z: Seconds - L: Load time from RTC           "
+  .else
+                .literal "                       H: Hours - M: Minutes - Z: Seconds                       "
+  .endif
+                .literal "                         S: Show AM/PM - RUN/STOP: Exit                        ", $00
+  
 AMOnMessage:
                 .literal "                                                                                "
                 .literal "                                                                                "
-                .literal "                                  AM: show dot                                 ", $00
+                .literal "                                  AM: Show dot                                 ", $00
 
 AMOffMessage:
                 .literal "                                                                                "
                 .literal "                                                                                "
-                .literal "                                  AM: show colon                               ", $00
+                .literal "                                  AM: Show colon                               ", $00
 .else
 Instructions:
+  .if C64
+                .literal "   h: hours - m: minutes - z: seconds   "
+                .literal "        c: color - s: show am/pm        "
+                .literal "             run/stop: exit            ", $00
+  .endif
+
+  .if PET
+    .if PETSDPLUS
+                .literal "   h: hours - m: minutes - z: seconds   "
+                .literal "         l: load time from rtc          "
+    .else
                 .literal "                                        "
-                .literal "                                        "
-                .literal "        press run/stop to exit         ", $00
+                .literal "   h: hours - m: minutes - z: seconds   "
+    .endif
+                .literal "     s: show am/pm - run/stop: exit    ", $00
+  .endif
 
 AMOnMessage:
                 .literal "                                        "
