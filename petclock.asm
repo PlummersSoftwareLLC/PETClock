@@ -1928,7 +1928,7 @@ AMOffMessage:
   .if C64
 TimeMessage:
                 .literal "                                        "
-                .literal "      current time: ##:##:##.# #m       "
+                .literal "      current time:   :  :  .   m       "
                 .literal "                                       ", $00
 TimeOffset      = COLUMNS + 20
 
