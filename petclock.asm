@@ -1860,13 +1860,13 @@ Instructions:
   
 AMOnMessage:
                 .literal "                                                                                "
-                .literal "                                                                                "
-                .literal "                                  AM: Show dot                                 ", $00
+                .literal "                                  AM: Show dot                                  "
+                .literal "                                                                               ", $00
 
 AMOffMessage:
                 .literal "                                                                                "
-                .literal "                                                                                "
-                .literal "                                  AM: Show colon                               ", $00
+                .literal "                                  AM: Show colon                                "
+                .literal "                                                                               ", $00
 .else
 Instructions:
   .if C64
