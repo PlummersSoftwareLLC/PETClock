@@ -1888,13 +1888,13 @@ Instructions:
 
 AMOnMessage:
                 .literal "                                        "
-                .literal "                                        "
-                .literal "            am: show dot               ", $00
+                .literal "              am: show dot              "
+                .literal "                                       ", $00
 
 AMOffMessage:
                 .literal "                                        "
-                .literal "                                        "
-                .literal "            am: show colon             ", $00
+                .literal "              am: show colon            "
+                .literal "                                       ", $00
 .endif
 
 dirname:        .literal "$",0
