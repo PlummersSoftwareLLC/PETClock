@@ -1252,10 +1252,12 @@ ShowTime:
                 cmp #'0'                ; If hour tens is zero, skip
                 beq @skiptens
                 sta (zptmp),y
-@skiptens:      iny
-                lda HourDigits
+                iny
+@skiptens:      lda HourDigits
                 sta (zptmp),y
                 iny
+                lda #':'
+                sta (zptmp),y
                 iny
 
                 lda MinTens
@@ -1264,6 +1266,8 @@ ShowTime:
                 lda MinDigits
                 sta (zptmp),y
                 iny
+                lda #':'
+                sta (zptmp),y
                 iny
 
                 lda SecTens
@@ -1272,6 +1276,8 @@ ShowTime:
                 lda SecDigits
                 sta (zptmp),y
                 iny
+                lda #'.'
+                sta (zptmp),y
                 iny
 
                 lda Tenths
@@ -1284,6 +1290,10 @@ ShowTime:
                 beq @writeflag
                 lda #'p'
 @writeflag:     jsr ConvertPetSCII
+                sta (zptmp),y
+                iny
+                lda #'m'
+                jsr ConvertPetSCII
                 sta (zptmp),y
 
                 rts
@@ -1930,7 +1940,7 @@ AMOffMessage:
   .if C64
 TimeMessage:
                 .literal "                                        "
-                .literal "      current time:   :  :  .   m       "
+                .literal "      current time:                     "
                 .literal "                                       ", $00
 TimeOffset      = COLUMNS + 20
 
