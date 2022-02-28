@@ -1249,8 +1249,10 @@ ShowTime:
                 ldy #0
 
                 lda HourTens            ; Overwrite placeholders with digits 
+                cmp #'0'                ; If hour tens is zero, skip
+                beq @skiptens
                 sta (zptmp),y
-                iny
+@skiptens:      iny
                 lda HourDigits
                 sta (zptmp),y
                 iny
