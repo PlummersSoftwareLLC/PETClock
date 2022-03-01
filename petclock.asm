@@ -188,14 +188,17 @@ notEscape:
 .endif
 
 .if C64
-                cmp #$43
+                cmp #$54
+                bne @notTime
+                jsr ShowTime            ; T pressed, show current CIA time
+                jmp InnerLoop
+
+@notTime:       cmp #$43
                 bne @notColor
                 jsr NextColor           ; C pressed, move to next character color
                 jmp MainLoop
 
-@notColor:
-
-                cmp #$C3
+@notColor:      cmp #$C3
                 bne @notColorDn
                 jsr PreviousColor       ; SHIFT-C pressed, move to previous character color
                 jmp MainLoop
@@ -471,9 +474,9 @@ ShowBanner:
                 sta ClockCount
                 sta ClockCount+1
 
-                lda #<(SCREEN_MEM + 22 * COLUMNS)   ; Place instructions at line 22-25 of the screen
+                lda #<MESSAGE_START             ; Place instructions at line 22-25 of the screen
                 sta zptmpB
-                lda #>(SCREEN_MEM + 22 * COLUMNS)
+                lda #>MESSAGE_START
                 sta zptmpB+1
                 ldy #0
 @loop:          lda (zptmp),y
@@ -1228,6 +1231,72 @@ BCDToChars:
 
                 rts
 
+;-----------------------------------------------------------------------------------
+; ShowTime - Show current CIA time
+;-----------------------------------------------------------------------------------
+ShowTime:
+                ldx #<TimeMessage       ; Print message template
+                ldy #>TimeMessage
+                jsr ShowBanner
+
+                jsr ReadCIAClock        ; Read current CIA time
+
+                lda #<(MESSAGE_START + TimeOffset)
+                sta zptmp
+                lda #>(MESSAGE_START + TimeOffset)
+                sta zptmp+1
+
+                ldy #0
+
+                lda HourTens            ; Overwrite placeholders with digits 
+                cmp #'0'                ; If hour tens is zero, skip
+                beq @skiptens
+                sta (zptmp),y
+                iny
+@skiptens:      lda HourDigits
+                sta (zptmp),y
+                iny
+                lda #':'
+                sta (zptmp),y
+                iny
+
+                lda MinTens
+                sta (zptmp),y
+                iny
+                lda MinDigits
+                sta (zptmp),y
+                iny
+                lda #':'
+                sta (zptmp),y
+                iny
+
+                lda SecTens
+                sta (zptmp),y
+                iny
+                lda SecDigits
+                sta (zptmp),y
+                iny
+                lda #'.'
+                sta (zptmp),y
+                iny
+
+                lda Tenths
+                sta (zptmp),y
+                iny
+                iny
+
+                lda #'a'
+                ldx PmFlag
+                beq @writeflag
+                lda #'p'
+@writeflag:     jsr ConvertPetSCII
+                sta (zptmp),y
+                iny
+                lda #'m'
+                jsr ConvertPetSCII
+                sta (zptmp),y
+
+                rts
 
 ;----------------------------------------------------------------------------
 ; WriteCIAClock - Write our clock structure into CIA1's TOD clock
@@ -1851,33 +1920,57 @@ CharLowDot:
 .if COLUMNS=80
 Instructions:
                 .literal "                                                                                "
-                .literal "                                                                                "
-                .literal "                             Press RUN/STOP to exit                            ", $00
-
+  .if PETSDPLUS
+                .literal "           H: Hours - M: Minutes - Z: Seconds - L: Load time from RTC           "
+  .else
+                .literal "                       H: Hours - M: Minutes - Z: Seconds                       "
+  .endif
+                .literal "                         S: Show AM/PM - RUN/STOP: Exit                        ", $00
+  
 AMOnMessage:
                 .literal "                                                                                "
-                .literal "                                                                                "
-                .literal "                                  AM: show dot                                 ", $00
+                .literal "                                  AM: Show dot                                  "
+                .literal "                                                                               ", $00
 
 AMOffMessage:
                 .literal "                                                                                "
-                .literal "                                                                                "
-                .literal "                                  AM: show colon                               ", $00
+                .literal "                                  AM: Show colon                                "
+                .literal "                                                                               ", $00
 .else
+  .if C64
+TimeMessage:
+                .literal "                                        "
+                .literal "      current time:                     "
+                .literal "                                       ", $00
+TimeOffset      = COLUMNS + 20
+
 Instructions:
+                .literal "   h: hours - m: minutes - z: seconds   "
+                .literal "    t: current time - s: show am/pm     "
+                .literal "       c: color - run/stop: exit       ", $00
+  .endif
+
+  .if PET
+Instructions:
+    .if PETSDPLUS
+                .literal "   h: hours - m: minutes - z: seconds   "
+                .literal "         l: load time from rtc          "
+    .else
                 .literal "                                        "
-                .literal "                                        "
-                .literal "        press run/stop to exit         ", $00
+                .literal "   h: hours - m: minutes - z: seconds   "
+    .endif
+                .literal "     s: show am/pm - run/stop: exit    ", $00
+  .endif
 
 AMOnMessage:
                 .literal "                                        "
-                .literal "                                        "
-                .literal "            am: show dot               ", $00
+                .literal "              am: show dot              "
+                .literal "                                       ", $00
 
 AMOffMessage:
                 .literal "                                        "
-                .literal "                                        "
-                .literal "            am: show colon             ", $00
+                .literal "              am: show colon            "
+                .literal "                                       ", $00
 .endif
 
 dirname:        .literal "$",0

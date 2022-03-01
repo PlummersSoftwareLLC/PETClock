@@ -78,6 +78,7 @@
 
     SECOND_JIFFIES  = 60                  ; Number of jiffies in a second
     MINUTE_JIFFIES  = 60 * SECOND_JIFFIES ; Number of jiffies in a minute
+    MESSAGE_START   = SCREEN_MEM + 22 * COLUMNS
 
 ;-----------------------------------------------------------------------------------
 ; Common definitions for all Commodore BASICs
