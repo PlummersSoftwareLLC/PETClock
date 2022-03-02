@@ -81,10 +81,13 @@ When the clock is running, some actions can be taken by pressing certain keys on
 |U|Update clock immediately|
 |S|Toggle showing whether it's AM or PM. When this setting is ON, the number separator will be a dot in AM, and a colon in PM. When the setting is OFF, the separator is a colon at all times.|
 |L|Load the current time from the petSD+ (on petSD+ builds, only)|
+|T|Show the current exact time as registered in the CIA clock (on C64 builds, only)|
 |C|Switch to the next character color in the palette (on C64 builds, only)|
 |SHIFT-C|Switch to the previous character color in the palette (on C64 builds, only)|
 
 You can stop the clock and return to BASIC by pressing RUN/STOP.
+
+A summary of this section will be shown if a key is pressed that is not recognized.
 
 ## 6502 assembly
 
