@@ -1017,10 +1017,10 @@ UpdateClock:
                 cli                     ;                                           (2)
 
                 sec                     ; Subtract the number of jiffies per minute (2)
-                sbc #<MINUTE_JIFFIES    ;   from the jiffy timer value, low byte    (2)
+                sbc #<UPDATE_JIFFIES    ;   from the jiffy timer value, low byte    (2)
                 sta zptmp               ;   first. Store A in temp, as we need A to (3)
                 txa                     ;   subtract the high byte of the number of (2)
-                sbc #>MINUTE_JIFFIES    ;   jiffies per minute from the middle      (2)
+                sbc #>UPDATE_JIFFIES    ;   jiffies per minute from the middle      (2)
                 tax                     ;   jiffy byte. We put that back in X, put  (2)
                 tya                     ;   the highest jiffy value byte into A     (2)
                 sbc #0                  ;   and complete the 3-byte subtract.       (2)
