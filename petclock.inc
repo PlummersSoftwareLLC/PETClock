@@ -78,11 +78,7 @@
 
     SECOND_JIFFIES  = 60                  ; Number of jiffies in a second
     MINUTE_JIFFIES  = 60 * SECOND_JIFFIES ; Number of jiffies in a minute
-.if CORRECTLAG
-    UPDATE_JIFFIES  = MINUTE_JIFFIES - 30 ; Lag-corrected jiffies between minute updates
-.else
-    UPDATE_JIFFIES  = MINUTE_JIFFIES      ; Ignore jiffy lag
-.endif
+    UPDATE_JIFFIES  = MINUTE_JIFFIES - JIFFYLAGCOMP ; Lag-corrected jiffies between minute updates
     MESSAGE_START   = SCREEN_MEM + 22 * COLUMNS
 
 ;-----------------------------------------------------------------------------------
