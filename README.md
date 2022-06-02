@@ -17,6 +17,7 @@ In the [`settings.inc`](settings.inc) file, a number of symbols are defined that
 |DEBUG|0 or 1|Yes|Set to 1 to enable code that only is included for debug builds.|
 |DEVICE_NUM|8 to 15|With petSD+|Device number of the petSD+. Only used if PETSDPLUS=1.|
 |EPROM|0 or 1|Yes|When set to 1, the BASIC stub and load address will not be included in the build output.|
+|JIFFYLAGCOMP|Integer|Yes|Jiffy timer lag compensation for the PET; this value is deducted from the "official" number of jiffies per minute (i.e. 3600) when deciding if a minute has passed. The default value of 28 is based on the finding that the clock loses slightly less than a minute per two hours on the MiniPET.|
 |PET|0 or 1|No|Configure build for the PET. Exactly one of C64 or PET **must** be defined to equal 1.|
 |PETSDPLUS|0 or 1|Yes|When set to 1, the clock will read RTC from [petSD+](http://petsd.net/) instead of the jiffy timer. Currently, the petSD+ is only supported on the PET.|
 |SHOWAMDEFAULT|0 or 1|Yes|Set to 1 to use a dot separator for AM and colon for PM. Otherwise, the separator is a colon at all times.|
