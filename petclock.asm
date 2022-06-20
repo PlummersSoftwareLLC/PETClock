@@ -153,7 +153,22 @@ endOfBasic:     .word 00                            ;   the +7 expression above,
 ; Start of Code
 ;-----------------------------------------------------------------------------------
 
-start:          cld
+start:          
+.if PET
+                lda PET_DETECT        ; Check if we're dealing with original ROMs
+                cmp #PET_2000
+                bne @goodpet
+
+                ldy #>notonoldrom     ; Disappoint user
+                lda #<notonoldrom
+                jsr WriteLine
+
+                rts
+@goodpet:
+.endif
+
+                cld
+
 .if C64
                 jsr InitCIAClock
 .endif
@@ -1974,3 +1989,7 @@ AMOffMessage:
 .endif
 
 dirname:        .literal "$",0
+
+.if PET
+notonoldrom:    .literal "SORRY, NO PETCLOCKING ON ORIGINAL ROMS.", 13, 0
+.endif
